@@ -47,15 +47,16 @@ ci_pip install munch srcml_caller libcst nanobind hatchling pytest numpy scipy s
 echo "=== Preparing ASAN Python Lane ==="
 if [[ "${RUN_ASAN}" == "yes" ]]; then
     ci_use_python_toolchain asan
-    ci_pip install munch srcml_caller libcst nanobind pytest sympy
+    ci_pip install munch srcml_caller libcst nanobind pytest sympy pyyaml jsonschema
 else
     echo "ASAN lane is disabled or skipped."
 fi
 
 echo "=== Preparing TSAN Python Lane ==="
 ci_use_python_toolchain tsan
-# Install nanobind for TSAN lane (do not install numpy, scipy, sympy yet)
-ci_pip install nanobind
+# Keep this lane small, but include the dependencies used by the nbsymengine
+# fixture and shared-case generators.
+ci_pip install nanobind pytest pyyaml jsonschema srcml_caller
 
 # --- Default Python Lane Execution ---
 ci_use_python_toolchain default
@@ -92,7 +93,10 @@ env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-05-build-and-test-perl.sh" /tmp/bl
 
 echo "=== 8. PHP extension build and tests ==="
 ci_use_php_toolchain
-env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-06-build-and-test-php.sh" /tmp/bld-se-php /tmp/inst-se-php /tmp/bld-php-ext
+# Reuse the debug SymEngine build installed by lane 1. The PHP extension is
+# built out of tree and links against that install tree; no second core build
+# is needed here.
+env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-06-build-and-test-php.sh" /tmp/bld-se-debug /tmp/symen-debug /tmp/bld-php-ext
 
 echo "=== 9. Swift package build and tests ==="
 env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-07-build-and-test-swift.sh" /tmp/bld-se-swift /tmp/bld-swift-package

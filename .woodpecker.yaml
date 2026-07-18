@@ -12,6 +12,7 @@ steps:
     image: *ci_image
     environment:
       COMPILER_LAUNCHER: sccache
+      LITGEN_ROOT: /opt-6/litgen-6085aaa
       CI: 1
       SCCACHE_BUCKET: my-bucket
       SCCACHE_REGION: us-east-1
@@ -20,10 +21,8 @@ steps:
       SCCACHE_S3_FORCE_PATH_STYLE: "true"
       AWS_ACCESS_KEY_ID: sccache-user
       AWS_SECRET_ACCESS_KEY: c555a296-edef-459d-f7d2-496d99e93be5
-      no_proxy: "localhost,127.0.0.1,172.17.0.1,172.22.0.10,172.22.0.11,172.22.0.12,172.22.0.13,172.22.0.14,woodpecker-server,woodpecker-agent,artifacts-server,seaweed-cache,cont-
-      reg.bjodah.se"
-      NO_PROXY: "localhost,127.0.0.1,172.17.0.1,172.22.0.10,172.22.0.11,172.22.0.12,172.22.0.13,172.22.0.14,woodpecker-server,woodpecker-agent,artifacts-server,seaweed-cache,cont-
-      reg.bjodah.se"
+      no_proxy: "localhost,127.0.0.1,172.17.0.1,172.22.0.10,172.22.0.11,172.22.0.12,172.22.0.13,172.22.0.14,woodpecker-server,woodpecker-agent,artifacts-server,seaweed-cache,cont-reg.bjodah.se"
+      NO_PROXY: "localhost,127.0.0.1,172.17.0.1,172.22.0.10,172.22.0.11,172.22.0.12,172.22.0.13,172.22.0.14,woodpecker-server,woodpecker-agent,artifacts-server,seaweed-cache,cont-reg.bjodah.se"
     commands:
       - sccache --start-server
       - sccache --show-stats

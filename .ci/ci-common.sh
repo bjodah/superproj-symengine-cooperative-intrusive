@@ -244,20 +244,27 @@ ci_apply_rcp_choice() {
         CMAKE_ARGS="${CMAKE_ARGS} -DSYMENGINE_RCP_BACKEND=cooperative_intrusive"
         export CMAKE_ARGS
         
-        # Ensure nanobind headers are discoverable.
-        local nanobind_floor=2.13.0
-        local nanobind_version
-        nanobind_version=$("$CI_PYTHON" -m nanobind --version)
-        if [[ "$(printf '%s\n%s\n' "$nanobind_floor" "$nanobind_version" | sort -V | head -n 1)" != "$nanobind_floor" ]]; then
-            echo "nanobind ${nanobind_floor} or newer is required; found ${nanobind_version}" >&2
-            return 1
+        # nanobind and Litgen are needed only when this configure invocation
+        # actually enables the nbsymengine target. Keeping them out of core
+        # SymEngine builds prevents CMake's unused-nanobind_DIR warning.
+        if [[ " ${CMAKE_ARGS} " == *" -DBUILD_PYTHON_NANOBIND=ON "* ]]; then
+            local nanobind_floor=2.13.0
+            local nanobind_version
+            nanobind_version=$("$CI_PYTHON" -m nanobind --version)
+            if [[ "$(printf '%s\n%s\n' "$nanobind_floor" "$nanobind_version" | sort -V | head -n 1)" != "$nanobind_floor" ]]; then
+                echo "nanobind ${nanobind_floor} or newer is required; found ${nanobind_version}" >&2
+                return 1
+            fi
+            if [[ -z "${NB_CMAKE_DIR:-}" ]]; then
+                export NB_CMAKE_DIR=$("$CI_PYTHON" -m nanobind --cmake_dir)
+            fi
+            export LITGEN_ROOT="${LITGEN_ROOT:-/opt-6/litgen-6085aaa}"
+            export SYMENGINE_LITGEN_DIR="${SYMENGINE_LITGEN_DIR:-${LITGEN_ROOT}/src}"
+            if [[ ! -d "${SYMENGINE_LITGEN_DIR}" ]]; then
+                echo "Litgen not found at ${SYMENGINE_LITGEN_DIR}" >&2
+                return 1
+            fi
+            export CMAKE_ARGS="${CMAKE_ARGS} -Dnanobind_DIR=${NB_CMAKE_DIR} -DSYMENGINE_LITGEN_DIR=${SYMENGINE_LITGEN_DIR}"
         fi
-        if [[ -z "${NB_CMAKE_DIR:-}" ]]; then
-            export NB_CMAKE_DIR=$("$CI_PYTHON" -m nanobind --cmake_dir)
-        fi
-        export CMAKE_ARGS="${CMAKE_ARGS} -Dnanobind_DIR=${NB_CMAKE_DIR}"
-        
-        # Make the pinned in-tree litgen importable
-        export PYTHONPATH="${SUPERPROJECT_ROOT}/nbsymengine/external/litgen/src:${PYTHONPATH:-}"
     fi
 }

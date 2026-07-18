@@ -14,3 +14,10 @@ When changing either copy, inspect changes under
 `include/nanobind/intrusive/` and `src/nb_type.cpp` and compare any counter
 changes with `symengine/symengine_rcp_cooperative.cpp` before updating the
 minimum version or submodule pin.
+
+## Litgen source
+
+In-tree binding generation uses `$LITGEN_ROOT/src`; CI sets `LITGEN_ROOT` to
+`/opt-6/litgen-6085aaa`. Override it with
+`-DSYMENGINE_LITGEN_DIR=<litgen-checkout>/src` (or
+`SYMENGINE_LITGEN_DIR` in the CI/sdist scripts). Litgen is not a submodule.

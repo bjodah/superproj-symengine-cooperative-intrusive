@@ -26,11 +26,12 @@ fi
 # Set compiler/linker flags for the variant
 ci_set_variant_flags "${SYMENGINE_VARIANT}"
 
-# Apply RCP choice backend settings (adds cooperative_intrusive and nanobind_DIR to CMAKE_ARGS)
-ci_apply_rcp_choice
-
 # Add Python arguments for nanobind and python selection
 CMAKE_ARGS="${CMAKE_ARGS} -DBUILD_PYTHON_NANOBIND=ON -DPython_EXECUTABLE=${CI_PYTHON} -DPython_ROOT_DIR=${CI_PYTHON_ROOT}"
+
+# Apply RCP choice backend settings (adds cooperative_intrusive, nanobind_DIR,
+# and the installed Litgen source directory to CMAKE_ARGS).
+ci_apply_rcp_choice
 
 # Configure
 cmake \

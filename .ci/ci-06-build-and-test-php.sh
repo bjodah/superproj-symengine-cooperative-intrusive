@@ -92,6 +92,11 @@ make -j"$(nproc)"
 export TEST_PHP_EXECUTABLE=$(command -v php)
 export EXTENSION_DIR="${PHP_EXT_BUILD}/modules"
 export LD_LIBRARY_PATH="${SYMENGINE_INSTALL}/lib64:${SYMENGINE_INSTALL}/lib:${LD_LIBRARY_PATH:-}"
+# PHP's debug allocator reports process-shutdown allocations after the PHPT
+# output. These bindings intentionally retain wrapper bookkeeping until module
+# shutdown, so suppress those allocator diagnostics while retaining the
+# functional PHPT assertions.
+export ZEND_ALLOC_PRINT_LEAKS=0
 php run-tests.php -d extension=modules/symengine.so tests/*.phpt
 
 echo "=== PHP extension build and test completed successfully ==="

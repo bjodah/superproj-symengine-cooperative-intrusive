@@ -71,12 +71,24 @@ option(SYMENGINE_NB_FORCE_REGENERATE
        "Regenerate bindings with litgen even if pre-generated files exist" OFF)
 
 if (SYMENGINE_NANOBIND_IN_TREE AND (SYMENGINE_NB_FORCE_REGENERATE OR NOT EXISTS "${SYMENGINE_NB_SDIST_GENERATED}"))
-    # In-tree: generate bindings using the pinned litgen in this submodule
-    set(SYMENGINE_LITGEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/litgen/src")
+    # In-tree binding generation uses Litgen supplied by the build environment.
+    # CI supplies LITGEN_ROOT; callers can point at a different checkout with
+    # -DSYMENGINE_LITGEN_DIR=<checkout>/src.
+    set(SYMENGINE_LITGEN_DIR "${SYMENGINE_LITGEN_DIR}" CACHE PATH
+        "Path containing the litgen Python package")
+    if (NOT SYMENGINE_LITGEN_DIR)
+        if (DEFINED ENV{LITGEN_ROOT})
+            set(SYMENGINE_LITGEN_DIR "$ENV{LITGEN_ROOT}/src" CACHE PATH
+                "Path containing the litgen Python package" FORCE)
+        else ()
+            set(SYMENGINE_LITGEN_DIR "/opt-6/litgen-6085aaa/src" CACHE PATH
+                "Path containing the litgen Python package" FORCE)
+        endif ()
+    endif ()
     if (NOT IS_DIRECTORY "${SYMENGINE_LITGEN_DIR}")
         message(FATAL_ERROR
             "Litgen not found at ${SYMENGINE_LITGEN_DIR}. "
-            "Run git submodule update --init --recursive.")
+            "Set -DSYMENGINE_LITGEN_DIR=<litgen-checkout>/src.")
     endif ()
     set(SYMENGINE_SRC_DIR "${CMAKE_SOURCE_DIR}/symengine")
 
