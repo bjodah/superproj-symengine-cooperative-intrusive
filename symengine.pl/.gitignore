@@ -1,0 +1,11 @@
+/.build/
+/blib/
+/Makefile
+/Makefile.old
+/MYMETA.json
+/MYMETA.yml
+/pm_to_blib
+/SymEngine.bs
+/*.o
+/xs/SymEngine.c
+/xs/SymEngine.xsc
