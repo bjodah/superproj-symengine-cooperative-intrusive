@@ -1,7 +1,7 @@
 ---
 
 variables:
-  - &ci_image 'cont-reg.bjodah.se:443/bjodah/triceratops-8:2'
+  - &ci_image 'cont-reg.bjodah.se:443/bjodah/triceratops-8:3'
 
 when:
   - event: [push]  # pull_request, tag, cron,
@@ -15,7 +15,7 @@ steps:
       CI: 1
       SCCACHE_BUCKET: my-bucket
       SCCACHE_REGION: us-east-1
-      SCCACHE_ENDPOINT: http://seaweed-cache:8333
+      SCCACHE_ENDPOINT: http://172.22.0.14:8333
       SCCACHE_S3_USE_SSL: "false"
       SCCACHE_S3_FORCE_PATH_STYLE: "true"
       AWS_ACCESS_KEY_ID: sccache-user
