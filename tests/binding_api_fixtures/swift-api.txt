@@ -1,0 +1,52 @@
+# Swift C bridge declarations
+symengine_swift_status symengine_swift_initialize(symengine_swift_ref_hook retain_hook, symengine_swift_ref_hook release_hook)
+const char *symengine_swift_version(void)
+const char *symengine_swift_last_error(void)
+symengine_swift_basic_ref symengine_swift_symbol(const char *name)
+symengine_swift_basic_ref symengine_swift_integer(int64_t value)
+symengine_swift_status symengine_swift_equal(symengine_swift_basic_ref left, symengine_swift_basic_ref right, int *result)
+symengine_swift_status symengine_swift_string(symengine_swift_basic_ref value, char **result)
+void symengine_swift_string_free(char *value)
+symengine_swift_status symengine_swift_wrapper_lock(void)
+void symengine_swift_wrapper_unlock(void)
+void *symengine_swift_external_owner(symengine_swift_basic_ref value)
+symengine_swift_status symengine_swift_externalize(symengine_swift_basic_ref value, void *owner)
+void symengine_swift_release_owned(symengine_swift_basic_ref value)
+void symengine_swift_delete_external(symengine_swift_basic_ref value, void *expected_owner)
+symengine_swift_basic_kind symengine_swift_kind(symengine_swift_basic_ref value)
+int symengine_swift_is_external_owned(symengine_swift_basic_ref value)
+symengine_swift_basic_ref symengine_swift_add(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_div(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_mul(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_neg(symengine_swift_basic_ref a)
+symengine_swift_basic_ref symengine_swift_one()
+symengine_swift_basic_ref symengine_swift_pi()
+symengine_swift_basic_ref symengine_swift_pow(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_sub(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_zero()
+# Public Swift API declarations
+public struct SymEngineError: Error, CustomStringConvertible, Equatable {
+public let code: Int32
+public let message: String
+public var description: String { message }
+public class Basic: CustomStringConvertible, Equatable {
+public func string() throws -> String {
+public var description: String {
+public func isEqual(to other: Basic) throws -> Bool {
+public static func == (left: Basic, right: Basic) -> Bool {
+public var isExternallyOwned: Bool {
+public final class Symbol: Basic {}
+public final class Integer: Basic {}
+public enum SymEngine {
+public static var version: String {
+public static func symbol(_ name: String) throws -> Symbol {
+public static func integer(_ value: Int64) throws -> Integer {
+public static func add(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func divide(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func multiply(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func negate(_ a: Basic) throws -> Basic {
+public static func one() throws -> Integer {
+public static func pi() throws -> Basic {
+public static func power(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func subtract(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func zero() throws -> Integer {

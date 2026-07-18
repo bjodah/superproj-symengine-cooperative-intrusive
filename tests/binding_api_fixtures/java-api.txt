@@ -1,0 +1,19 @@
+# Generated SymEngine.java public methods
+add
+div
+integer
+mul
+neg
+one
+pi
+pow
+sin
+sub
+symbol
+zero
+# Manual Basic.java public methods
+close
+equals
+hashCode
+sameInstance
+toString

@@ -1,0 +1,7 @@
+[submodule "symengine"]
+	path = symengine
+	url = https://github.com/symengine/symengine
+        branch = cooperative_intrusive
+[submodule "symengine.py"]
+	path = symengine.py
+	url = https://github.com/symengine/symengine.py

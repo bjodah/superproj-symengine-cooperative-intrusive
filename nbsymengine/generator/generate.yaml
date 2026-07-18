@@ -1,0 +1,240 @@
+modules:
+  core:
+    headers:
+      # Core hierarchy
+      - symengine/number.h
+      - symengine/rational.h
+      - symengine/constants.h
+      - symengine/symbol.h
+      - symengine/integer.h
+      # Arithmetic
+      - symengine/add.h
+      - symengine/mul.h
+      - symengine/pow.h
+      # Functions (trig, hyperbolic, special)
+      - symengine/functions.h
+      # Boolean / relational
+      - symengine/logic.h
+      # Sets
+      - symengine/sets.h
+      # Number theory
+      - symengine/ntheory.h
+    pydef_path: generated/symengine_pydef.cpp
+    stub_path: generated/symengine.pyi
+    class_exclude:
+      # Internal / infrastructure
+      - RCPIntegerKeyLess
+      - DictBasicIter
+      - _DictBasic
+      # Abstract base classes (cannot be instantiated)
+      - Function
+      - OneArgFunction
+      - TwoArgFunction
+      - MultiArgFunction
+      - TrigBase
+      - TrigFunction
+      - InverseTrigFunction
+      - HyperbolicBase
+      - HyperbolicFunction
+      - InverseHyperbolicFunction
+      # Classes that need special handling
+      - FunctionSymbol
+      - FunctionWrapper
+      - Derivative
+      - Subs
+      - Piecewise
+      - UnevaluatedExpr
+      - BasicMeta
+      # Hand-bound in core_module.cpp (do not duplicate)
+      - Basic
+      - Number
+      - NumberWrapper
+      - Evaluate
+      - Set
+      - FiniteSet
+      - ConditionSet
+      - ImageSet
+      - Boolean
+      - BooleanAtom
+      - And
+      - Or
+      - Not
+      - Xor
+      - Contains
+      - Relational
+      - Equality
+      - Unequality
+      - LessThan
+      - StrictLessThan
+      # Infrastructure from api_inventory.yaml excluded_infrastructure
+      - SympifyError
+      - Singleton
+      - DictBasic
+    fn_exclude:
+      # Already bound by hand in core_module.cpp
+      - pow
+      - expand
+      # Comparison helpers (use methods instead)
+      - unified_eq
+      - unified_compare
+      # Exclude per-class __eq__ so the root Basic.__eq__ is used.
+      # The root handles non-Basic arguments gracefully (returns False).
+      - __eq__
+      # Number theory edge cases
+      - perfect_square
+      - perfect_power
+      - multinomial_coefficients
+      - multinomial_coefficients_mpz
+      # Infrastructure: cast helpers
+      - rcp_static_cast_.*
+      - rcp_dynamic_cast_.*
+      - rcp_const_cast_.*
+      # Infrastructure: make_rcp aliases
+      - make_rcp_.*
+      # Infrastructure: out-arg helpers
+      - outArg
+      - ptrFromRef
+      # Infrastructure: visitors
+      - has_basic
+      - has_symbol
+      # Parser internals
+      - parse
+      - parse_sbml
+      # Serialization
+      - serialize.*
+      # Complex number edge cases
+      - complex_double
+      - complex_mpc
+      # Eval functions that need special types
+      - evalf
+      - eval_double
+      - eval_complex_double
+      # Solve functions (need special handling)
+      - solve.*
+      - linsolve
+      # Code generation
+      - ccode
+      - latex
+      - unicode
+      # Module management
+      - module_cleanup
+      - create_sympy_module
+      - create_sage_module
+      - wrap_sage_function
+      # Matrix constructors (need DenseMatrix type)
+      - eye
+      - diag
+      - ones
+      - zeros
+      # Series (needs special handling)
+      - series
+      # Array/symarray
+      - symarray
+      # Precision conversion
+      - dps_to_prec
+      # Internal diff
+      - _diff
+      # Internal min/max
+      - _max
+      - _min
+      # evalf/eval
+      - eval
+      - eval_real
+      # Function factory with vec_basic (needs container adapter)
+      - function_symbol
+      # Container returns that need adapters
+      - levi_civita
+      - max
+      - min
+      # Has-type checks (use isinstance instead)
+      - is_a_Symbol
+      - is_a_Boolean
+      - is_a_Set
+      - is_a_Number
+      # Misc
+      - require
+      - cse
+      - count_ops
+      # Piecewise / interval factory functions
+      - piecewise
+      - interval
+      - emptyset
+      - universalset
+      - reals
+      - rationals
+      - integers
+      - finiteset
+      - contains
+      - logical_and
+      - logical_or
+      - logical_not
+      - logical_xor
+      - set_union
+      - set_intersection
+      - set_complement
+      - conditionset
+      - imageset
+      # Free is_* functions from number.h (return tribool, take Assumptions*).
+      # NOTE: These also exclude member methods with the same names on Integer,
+      # Rational, etc. The member methods are re-added manually in
+      # core_module.cpp after the generated pydef include.
+      - is_zero
+      - is_positive
+      - is_negative
+      - is_nonpositive
+      - is_nonnegative
+      - is_real
+      - is_nonzero
+      - is_integer
+      - is_complex
+      - is_rational
+      - is_irrational
+      - is_finite
+      - is_infinite
+      - is_even
+      - is_odd
+      - is_algebraic
+      - is_transcendental
+      - is_number_and_zero
+      # Diff
+      - diff
+      # Lambdify
+      - Lambdify
+      - LambdifyCSE
+      - create_low_level_callable
+      # Eval utilities
+      - integer_nthroot
+      - is_square
+      # ntheory functions with special types (Ptr<RCP<const Integer>>)
+      # Most are exact-name exclusions derived from binding-spec/api.yaml.
+      # The anchored patterns are a defensive no-op today (litgen does not
+      # currently emit these free functions) but guard against future changes.
+      # The ones below are not shared-spec adapter functions and stay listed.
+      - gcd_ext
+      - mod
+      - quotient
+      - quotient_mod
+      - crt
+      - fibonacci
+      - fibonacci2
+      - lucas
+      - lucas2
+      - bernoulli
+      - harmonic
+      - sqrt_mod
+      - mod_f
+      - quotient_f
+      - quotient_mod_f
+      - prime_factor_multiplicities
+      - quadratic_residues
+      - is_quad_residue
+      - is_nth_residue
+      - mobius
+      - mertens
+      - mp_polygonal_number
+      - mp_principal_polygonal_root
+      # ntheory_funcs.h
+      - primepi
+      - primorial
+      - polygonal_number
+      - principal_polygonal_root

@@ -1,0 +1,109 @@
+"""Render the mechanical PHP extension module functions and declarations."""
+
+from __future__ import annotations
+
+from .model import BindingSpec, Function
+from .render_nbsymengine import _header
+
+
+_SUPPORTED = frozenset(("singleton", "unary_basic", "binary_basic"))
+
+
+def php_functions(spec: BindingSpec) -> tuple[Function, ...]:
+    result = []
+    for function in spec.functions:
+        if "php" not in function.expose or function.implementation != "generated":
+            continue
+        if function.behavior not in _SUPPORTED:
+            raise ValueError(
+                f"entry '{function.id}': PHP renderer does not support "
+                f"{function.behavior!r}"
+            )
+        result.append(function)
+    return tuple(sorted(result, key=lambda function: function.id))
+
+
+def _arginfo_name(function: Function) -> str:
+    return f"arginfo_{function.public_name('php')}"
+
+
+def render_php_inc(spec: BindingSpec) -> str:
+    """Render arginfo plus handlers; Zend ownership remains in runtime helpers."""
+    lines = _header(spec, "//")
+    lines.append("// Included by symengine_php.cpp.")
+    for function in php_functions(spec):
+        name = function.public_name("php")
+        arginfo = _arginfo_name(function)
+        count = len(function.arguments)
+        lines.extend([
+            "",
+            f"ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX({arginfo}, 0, {count}, SymEngine\\\\Basic, 0)",
+        ])
+        for argument in function.arguments:
+            lines.append(
+                f"    ZEND_ARG_OBJ_INFO(0, {argument.name}, SymEngine\\\\Basic, 0)"
+            )
+        lines.append("ZEND_END_ARG_INFO()")
+        lines.extend(["", f"PHP_FUNCTION({name})", "{"])
+        if function.behavior == "singleton":
+            expression = function.cpp.expression
+            assert expression is not None
+            lines.extend([
+                "    ZEND_PARSE_PARAMETERS_NONE();",
+                f"    symengine_wrap_basic(return_value, {expression});",
+            ])
+        else:
+            for argument in function.arguments:
+                lines.append(f"    zval *{argument.name};")
+            parse = "".join("O" for _ in function.arguments)
+            parse_arguments = ", ".join(
+                item
+                for argument in function.arguments
+                for item in (f"&{argument.name}", "symengine_ce_basic")
+            )
+            lines.extend([
+                "",
+                f'    if (zend_parse_parameters(ZEND_NUM_ARGS(), "{parse}", {parse_arguments}) == FAILURE) {{',
+                "        RETURN_THROWS();",
+                "    }",
+                "",
+                "    try {",
+            ])
+            cpp_name = function.cpp.name
+            assert cpp_name is not None
+            call_arguments = ", ".join(
+                f"symengine_unwrap_basic({argument.name})" for argument in function.arguments
+            )
+            lines.extend([
+                f"        symengine_wrap_basic(return_value, {cpp_name}({call_arguments}));",
+                "    } catch (const std::exception &error) {",
+                "        symengine_throw_cpp_exception(error);",
+                "        RETURN_THROWS();",
+                "    }",
+            ])
+        lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def render_php_function_table_inc(spec: BindingSpec) -> str:
+    lines = _header(spec, "//")
+    lines.append("// Included in symengine_functions.")
+    lines.extend(
+        f"    PHP_FE({function.public_name('php')}, {_arginfo_name(function)})"
+        for function in php_functions(spec)
+    )
+    return "\n".join(lines) + "\n"
+
+
+def render_php_stub(spec: BindingSpec) -> str:
+    """Render an IDE-visible declaration source from the same signatures."""
+    lines = _header(spec, "//")
+    lines.extend(["<?php", "", "// Generated declaration source; runtime arginfo is emitted in C++."])
+    for function in php_functions(spec):
+        parameters = ", ".join(
+            f"SymEngine\\Basic ${argument.name}" for argument in function.arguments
+        )
+        lines.append(
+            f"function {function.public_name('php')}({parameters}): SymEngine\\Basic {{}}"
+        )
+    return "\n".join(lines) + "\n"

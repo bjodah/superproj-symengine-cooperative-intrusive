@@ -1,0 +1,29 @@
+---
+
+variables:
+  - &ci_image 'cont-reg.bjodah.se:443/bjodah/triceratops-8:1'
+
+when:
+  - event: [push]  # pull_request, tag, cron,
+
+steps:
+
+  - name: build-and-test
+    image: *ci_image
+    environment:
+      COMPILER_LAUNCHER: sccache
+      CI: 1
+      SCCACHE_BUCKET: my-bucket
+      SCCACHE_REGION: us-east-1
+      SCCACHE_ENDPOINT: http://seaweed-cache:8333
+      SCCACHE_S3_USE_SSL: "false"
+      SCCACHE_S3_FORCE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: sccache-user
+      AWS_SECRET_ACCESS_KEY: c555a296-edef-459d-f7d2-496d99e93be5
+    commands:
+      - sccache --start-server || true
+      - sccache --show-stats || true
+      - cp -ra $PWD /tmp  # avoids unbuffered(?) disk-write race-condition, /dev/shm has noexec?
+      - cd /tmp/`basename $PWD`
+      - bash -lc ".ci/run-ci-steps.sh"
+      - sccache --show-stats || true

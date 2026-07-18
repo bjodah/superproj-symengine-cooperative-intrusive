@@ -1,0 +1,237 @@
+# Public Python names and normalized .pyi declarations.
+class Basic()
+class Number(Basic)
+class Set(Basic)
+class Boolean(Basic)
+class Rational(Number)
+class Constant(Basic)
+class Symbol(Basic)
+class Dummy(Symbol)
+class Integer(Number)
+class Add(Basic)
+class Mul(Basic)
+class Pow(Basic)
+class Sign(Basic)
+class Floor(Basic)
+class Ceiling(Basic)
+class Truncate(Basic)
+class Conjugate(Basic)
+class Sin(Basic)
+class Cos(Basic)
+class Tan(Basic)
+class Cot(Basic)
+class Csc(Basic)
+class Sec(Basic)
+class ASin(Basic)
+class ACos(Basic)
+class ASec(Basic)
+class ACsc(Basic)
+class ATan(Basic)
+class ACot(Basic)
+class ATan2(Basic)
+class Log(Basic)
+class LambertW(Basic)
+class Zeta(Basic)
+class Dirichlet_eta(Basic)
+class Sinh(Basic)
+class Csch(Basic)
+class Cosh(Basic)
+class Sech(Basic)
+class Tanh(Basic)
+class Coth(Basic)
+class ASinh(Basic)
+class ACsch(Basic)
+class ACosh(Basic)
+class ATanh(Basic)
+class ACoth(Basic)
+class ASech(Basic)
+class KroneckerDelta(Basic)
+class LeviCivita(Basic)
+class Gamma(Basic)
+class LowerGamma(Basic)
+class UpperGamma(Basic)
+class Abs(Basic)
+class Max(Basic)
+class Min(Basic)
+class Interval(Set)
+class Complexes(Set)
+class Reals(Set)
+class Rationals(Set)
+class Integers(Set)
+class Naturals(Set)
+class Naturals0(Set)
+class Union(Set)
+class Intersection(Set)
+class Complement(Set)
+def probab_prime_p(a: Integer, reps: int = 25) -> int
+def divides(a: Integer, b: Integer) -> bool
+def legendre(a: Integer, n: Integer) -> int
+def jacobi(a: Integer, n: Integer) -> int
+def kronecker(a: Integer, n: Integer) -> int
+class Erf(Basic)
+class Erfc(Basic)
+class LogGamma(Basic)
+class Beta(Basic)
+class PolyGamma(Basic)
+class EmptySet(Set)
+class UniversalSet(Set)
+class FiniteSet(Set)
+class ConditionSet(Set)
+class ImageSet(Set)
+class BooleanAtom(Boolean)
+class And(Boolean)
+class Or(Boolean)
+class Not(Boolean)
+class Xor(Boolean)
+class Contains(Boolean)
+class Relational(Boolean)
+class Equality(Relational)
+class Unequality(Relational)
+class LessThan(Relational)
+class StrictLessThan(Relational)
+def symbol(name: str) -> Basic
+def integer(i: int) -> Basic
+def integer(s: str) -> Basic
+def add(a: Basic, b: Basic) -> Basic
+def sub(a: Basic, b: Basic) -> Basic
+def mul(a: Basic, b: Basic) -> Basic
+def div(a: Basic, b: Basic) -> Basic
+def pow(a: Basic, b: Basic) -> Basic
+def neg(a: Basic) -> Basic
+def expand(expr: Basic) -> Basic
+def logical_and(*conditions: Boolean) -> Boolean
+def logical_or(*conditions: Boolean) -> Boolean
+def logical_not(condition: Boolean) -> Boolean
+def logical_xor(*conditions: Boolean) -> Boolean
+def contains(expr: Basic, set: Set) -> Boolean
+def true_const() -> Boolean
+def false_const() -> Boolean
+def factorial(n: int) -> Basic
+def binomial(n: Basic, k: int) -> Basic
+def fibonacci(n: int) -> Basic
+def lucas(n: int) -> Basic
+def mod(n: Basic, d: Basic) -> Basic
+def quotient(n: Basic, d: Basic) -> Basic
+def mod_f(n: Basic, d: Basic) -> Basic
+def quotient_f(n: Basic, d: Basic) -> Basic
+def bernoulli(n: int) -> Number
+def harmonic(n: int, m: int = 1) -> Number
+def gcd_ext(a: Basic, b: Basic) -> tuple
+def quotient_mod(a: Basic, b: Basic) -> tuple
+def quotient_mod_f(a: Basic, b: Basic) -> tuple
+def fibonacci2(n: int) -> tuple
+def lucas2(n: int) -> tuple
+def crt(rem: list, mod: list) -> Basic | None
+def prime_factor_multiplicities(n: Basic) -> dict
+def integer_nthroot(a: Basic, n: int) -> tuple
+def is_square(n: Basic) -> bool
+def perfect_power(n: Basic) -> bool
+def cse(exprs: list) -> tuple
+def finiteset(container: set) -> Basic
+def interval(l: Basic, r: Basic, left_open: bool = False, right_open: bool = False) -> Basic
+def emptyset() -> Basic
+def universalset() -> Basic
+def reals() -> Basic
+def rationals() -> Basic
+def integers() -> Basic
+def complexes() -> Basic
+def naturals() -> Basic
+def naturals0() -> Basic
+def set_union(sets: list) -> Set
+def set_intersection(sets: list) -> Set
+def set_complement(universe: Set, container: Set) -> Set
+def conditionset(sym: Basic, condition: Boolean) -> Set
+def imageset(sym: Basic, expr: Basic, base: Set) -> Set
+def solve(f: Basic, sym: Basic, domain: Set | None = None) -> Set
+def linsolve(system: list, syms: list) -> list
+def zero() -> Basic
+def one() -> Basic
+def pi() -> Basic
+def e() -> Basic
+def euler_gamma() -> Basic
+def I() -> Basic
+def oo() -> Number
+def zoo() -> Number
+def nan_const() -> Number
+def str(expr: Basic) -> builtins.str
+def same_object(a: Basic, b: Basic) -> bool
+def cpp_use_count(a: Basic) -> int
+def cast_to_number(x: Basic) -> Number
+def real_double(x: float) -> Number
+def function_symbol(name: str, *args: Basic) -> Basic
+def diff(expr: Basic, sym: Basic) -> Basic
+def xreplace(expr: Basic, subs_dict: dict) -> Basic
+def subs(expr: Basic, subs_dict: dict) -> Basic
+def msubs(expr: Basic, subs_dict: dict) -> Basic
+def unevaluated_expr(arg: Basic) -> Basic
+def series(expr: Basic, var: Basic, prec: int) -> Number
+def sin(a: Basic) -> Basic
+def cos(a: Basic) -> Basic
+def tan(a: Basic) -> Basic
+def cot(a: Basic) -> Basic
+def csc(a: Basic) -> Basic
+def sec(a: Basic) -> Basic
+def asin(a: Basic) -> Basic
+def acos(a: Basic) -> Basic
+def atan(a: Basic) -> Basic
+def acot(a: Basic) -> Basic
+def asec(a: Basic) -> Basic
+def acsc(a: Basic) -> Basic
+def atan2(a: Basic, b: Basic) -> Basic
+def sinh(a: Basic) -> Basic
+def cosh(a: Basic) -> Basic
+def tanh(a: Basic) -> Basic
+def coth(a: Basic) -> Basic
+def sech(a: Basic) -> Basic
+def csch(a: Basic) -> Basic
+def asinh(a: Basic) -> Basic
+def acosh(a: Basic) -> Basic
+def atanh(a: Basic) -> Basic
+def acoth(a: Basic) -> Basic
+def asech(a: Basic) -> Basic
+def acsch(a: Basic) -> Basic
+def log(a: Basic) -> Basic
+def sqrt(a: Basic) -> Basic
+def abs(a: Basic) -> Basic
+def sign(a: Basic) -> Basic
+def floor(a: Basic) -> Basic
+def ceiling(a: Basic) -> Basic
+def gamma(a: Basic) -> Basic
+def erf(a: Basic) -> Basic
+def erfc(a: Basic) -> Basic
+def lambertw(a: Basic) -> Basic
+def zeta(s: Basic) -> Basic
+def dirichlet_eta(s: Basic) -> Basic
+def beta(x: Basic, y: Basic) -> Basic
+def conjugate(a: Basic) -> Basic
+def loggamma(a: Basic) -> Basic
+def polygamma(n: Basic, x: Basic) -> Basic
+def digamma(a: Basic) -> Basic
+def trigamma(a: Basic) -> Basic
+def uppergamma(s: Basic, x: Basic) -> Basic
+def lowergamma(s: Basic, x: Basic) -> Basic
+def Eq(a: Basic, b: Basic) -> Boolean
+def Ne(a: Basic, b: Basic) -> Boolean
+def Ge(a: Basic, b: Basic) -> Boolean
+def Gt(a: Basic, b: Basic) -> Boolean
+def Le(a: Basic, b: Basic) -> Boolean
+def Lt(a: Basic, b: Basic) -> Boolean
+def nextprime(a: Basic) -> Basic
+def totient(a: Basic) -> Basic
+def carmichael(a: Basic) -> Basic
+def gcd(a: Basic, b: Basic) -> Basic
+def lcm(a: Basic, b: Basic) -> Basic
+def mod_inverse(a: Basic, m: Basic) -> Basic | None
+def primitive_root(n: Basic) -> Basic | None
+def multiplicative_order(a: Basic, n: Basic) -> Basic | None
+def nthroot_mod(a: Basic, n: Basic, m: Basic) -> Basic | None
+def powermod(a: Basic, b: Basic, m: Basic) -> Basic | None
+def factor(n: Basic, B1: float = 1.0) -> Basic | None
+def factor_trial_division(n: Basic) -> Basic | None
+def factor_lehman_method(n: Basic) -> Basic | None
+def factor_pollard_pm1_method(n: Basic, B: int = 10, retries: int = 5) -> Basic | None
+def factor_pollard_rho_method(n: Basic, retries: int = 5) -> Basic | None
+def prime_factors(n: Basic) -> list
+def primitive_root_list(n: Basic) -> list
+def nthroot_mod_list(a: Basic, n: Basic, m: Basic) -> list
+def powermod_list(a: Basic, b: Basic, m: Basic) -> list

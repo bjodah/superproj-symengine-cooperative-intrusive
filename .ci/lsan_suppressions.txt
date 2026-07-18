@@ -1,0 +1,3 @@
+# LSAN suppression file for SymEngine ASAN CI lane
+# Ignore standard CPython startup/runtime leaks from python itself
+leak:libpython

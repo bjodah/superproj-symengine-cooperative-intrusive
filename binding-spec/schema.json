@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SymEngine shared binding API specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "types", "functions"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "types": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cpp", "category"],
+        "properties": {
+          "cpp": {"type": "string", "minLength": 1},
+          "category": {"enum": ["expression", "value"]},
+          "extends": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "functions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "cpp", "arguments", "returns", "behavior", "expose"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "cpp": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["header"],
+            "properties": {
+              "header": {"type": "string", "pattern": "^symengine/[A-Za-z0-9_./-]+\\.h$"},
+              "name": {"type": "string", "pattern": "^SymEngine::[A-Za-z_]\\w*$"},
+              "expression": {"type": "string", "pattern": "^SymEngine::[A-Za-z_]\\w*$"}
+            },
+            "oneOf": [
+              {"required": ["name"], "not": {"required": ["expression"]}},
+              {"required": ["expression"], "not": {"required": ["name"]}}
+            ]
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "type"],
+              "properties": {
+                "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+                "type": {"type": "string", "minLength": 1},
+                "default": {"type": ["string", "number", "boolean", "null"]}
+              }
+            }
+          },
+          "returns": {"type": "string", "minLength": 1},
+          "behavior": {
+            "enum": [
+              "singleton", "unary_basic", "binary_basic", "binary_boolean",
+              "integer_unary", "integer_binary", "status_optional_unary",
+              "list_integer_to_basic"
+            ]
+          },
+          "expose": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "names": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "python": {"type": "string", "pattern": "^[A-Za-z_]\\w*$"},
+              "perl": {"type": "string", "pattern": "^[A-Za-z_]\\w*$"},
+              "php": {"type": "string", "pattern": "^[A-Za-z_]\\w*$"},
+              "swift": {"type": "string", "pattern": "^[A-Za-z_]\\w*$"},
+              "java": {"type": "string", "pattern": "^[A-Za-z_]\\w*$"}
+            }
+          },
+          "implementation": {"enum": ["generated", "manual"]},
+          "adapter": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "deref": {"type": "boolean"},
+              "status_type": {"enum": ["int", "bool"]},
+              "section": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    }
+  }
+}

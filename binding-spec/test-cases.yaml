@@ -1,0 +1,59 @@
+schema_version: 1
+
+# Conservative, string-expectation-only behavioral cases shared across every
+# wrapper. Do not add ownership or identity assertions here (see the roadmap's
+# "Phase 5" section); those remain native, per-wrapper tests because their
+# runtime semantics differ across ownership models.
+cases:
+  - id: add_integers
+    arrange:
+      x: {integer: 2}
+      y: {integer: 3}
+    call: {function: add, arguments: [x, y]}
+    expect: {string: "5"}
+  - id: sub_integers
+    arrange:
+      x: {integer: 3}
+      y: {integer: 2}
+    call: {function: sub, arguments: [x, y]}
+    expect: {string: "1"}
+  - id: mul_integers
+    arrange:
+      x: {integer: 2}
+      y: {integer: 3}
+    call: {function: mul, arguments: [x, y]}
+    expect: {string: "6"}
+  - id: div_integers
+    arrange:
+      x: {integer: 3}
+      y: {integer: 2}
+    call: {function: div, arguments: [x, y]}
+    expect: {string: "3/2"}
+  - id: pow_integers
+    arrange:
+      x: {integer: 2}
+      y: {integer: 3}
+    call: {function: pow, arguments: [x, y]}
+    expect: {string: "8"}
+  - id: neg_integer
+    arrange:
+      x: {integer: 2}
+    call: {function: neg, arguments: [x]}
+    expect: {string: "-2"}
+  - id: sin_symbol
+    arrange:
+      x: {symbol: x}
+    call: {function: sin, arguments: [x]}
+    expect: {string: "sin(x)"}
+  - id: zero_constant
+    arrange: {}
+    call: {function: zero, arguments: []}
+    expect: {string: "0"}
+  - id: one_constant
+    arrange: {}
+    call: {function: one, arguments: []}
+    expect: {string: "1"}
+  - id: pi_constant
+    arrange: {}
+    call: {function: pi, arguments: []}
+    expect: {string: "pi"}

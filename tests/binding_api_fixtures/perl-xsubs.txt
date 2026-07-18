@@ -1,0 +1,20 @@
+# Perl XSUBs
+symbol(name) -> SV *
+integer(value) -> SV *
+same_object(left, right) -> bool
+cpp_use_count(value) -> unsigned int
+perl_refcount(value) -> unsigned int
+is_external_owned(value) -> bool
+_stringify(self) -> SV *
+_equals(self, other) -> bool
+DESTROY(self) -> void
+add(a, b) -> SV *
+div(a, b) -> SV *
+mul(a, b) -> SV *
+neg(a) -> SV *
+one() -> SV *
+pi() -> SV *
+pow(a, b) -> SV *
+sin(a) -> SV *
+sub(a, b) -> SV *
+zero() -> SV *

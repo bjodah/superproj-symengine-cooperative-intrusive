@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nbsymengine-compat"
+version = "0.1.0"
+description = "Legacy symengine.py compatibility shim backed by nbsymengine"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.optional-dependencies]
+sympy = ["sympy"]
+test = [
+    "pytest",
+    "libcst",
+    "numpy",
+    "scipy",
+    "sympy",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nbsymengine_compat"]

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "nbsymengine"
+version = "0.14.0"
+description = "Nanobind/litgen-generated Python bindings for SymEngine"
+requires-python = ">=3.13"
+license = "MIT"
+
+[tool.scikit-build]
+cmake.args = [
+    "-DSYMENGINE_RCP_BACKEND=cooperative_intrusive",
+    "-DBUILD_TESTS=OFF",
+    "-DBUILD_BENCHMARKS=OFF",
+]
+wheel.packages = ["nbsymengine"]
+install.components = ["python_package"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+markers = [
+    "legacy_compat: converted legacy symengine.py test",
+]
