@@ -1,6 +1,6 @@
 [submodule "symengine"]
 	path = symengine
-	url = https://github.com/symengine/symengine
+	url = https://github.com/bjodah/symengine
         branch = cooperative_intrusive
 [submodule "symengine.py"]
 	path = symengine.py
