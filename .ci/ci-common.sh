@@ -167,12 +167,15 @@ ci_set_variant_flags() {
             export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DWITH_BFD=OFF -DWITH_LLVM=OFF -DINTEGER_CLASS=boostmp ${user_cmake_args}"
             ;;
         tsan)
-            export CXXFLAGS="-std=c++20 -fsanitize=thread -O1 -g -ggdb3 -fsized-deallocation"
-            export LDFLAGS="-fsanitize=thread ${LDFLAGS:-}"
+            # Compose from the image's fragments instead of taking its full
+            # default CXXFLAGS, to keep -std/-ggdb3/-fsized-deallocation.
+            # Building against the TSan-instrumented libc++ (rather than an
+            # uninstrumented libstdc++) lets TSan see synchronization inside
+            # the standard library.
+            source "${CI_TOOLCHAIN_ENV_DIR}/env-tsan.sh"
+            export CXXFLAGS="-std=c++20 -O1 -g -ggdb3 -fsized-deallocation ${OPT_TSAN_CXXFLAGS} ${OPT_TSAN_STDLIB_CXXFLAGS}"
+            export LDFLAGS="${OPT_TSAN_LDFLAGS}"
             export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DWITH_BFD=OFF -DWITH_LLVM=OFF -DINTEGER_CLASS=boostmp -DHAVE_GCC_ABI_DEMANGLE=no ${user_cmake_args}"
-            export CC="${CLANG_CC:-clang}"
-            export CXX="${CLANG_CXX:-clang++}"
-            export CCACHE_CPP2=true
             ;;
         asan)
             source "${CI_TOOLCHAIN_ENV_DIR}/env-asan.sh"
