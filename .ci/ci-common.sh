@@ -19,62 +19,48 @@ export CI_JAVA_HOME="${CI_JAVA_HOME:-/opt-4/miniforge3/lib/jvm}"
 # Resolve Boost path if present
 export Boost_ROOT=$(compgen -G "${Boost_ROOT:-'/path-not-provided'}" || true)
 
+# Toolchain mechanics (compilers, sanitizer flags, instrumented stdlib and
+# sanitizer-python resolution) are owned by the triceratops CI image, staged
+# under /opt-N (from bjodah-containers/triceratops/env-N/env-*.sh). Point
+# CI_TOOLCHAIN_ENV_DIR at a bind-mounted checkout of that env-N directory to
+# iterate on those scripts without rebuilding the image (see
+# .ci/host-local-test-run.sh).
+if [[ -z "${CI_TOOLCHAIN_ENV_DIR:-}" ]]; then
+    _ci_toolchain_probe=$(compgen -G "/opt*/env-asan.sh" | sort -rV | head -1 || true)
+    CI_TOOLCHAIN_ENV_DIR="${_ci_toolchain_probe%/*}"
+    unset _ci_toolchain_probe
+fi
+export CI_TOOLCHAIN_ENV_DIR
+
 # Resolve the default Python installation paths
 export CI_DEFAULT_PYTHON_ROOT=/opt-3/cpython-v3.13-apt-deb
 export CI_DEFAULT_PYTHON=/opt-3/cpython-v3.13-apt-deb/bin/python
 export CI_DEFAULT_PIP=/opt-3/cpython-v3.13-apt-deb/bin/pip
 
 # Resolve the TSAN Python installation paths
-export CI_TSAN_PYTHON_ROOT=/opt-3/cpython-v3.14.4-tsan
-export CI_TSAN_PYTHON=/opt-3/cpython-v3.14.4-tsan/bin/python3.14
-export CI_TSAN_PIP=/opt-3/cpython-v3.14.4-tsan/bin/pip3.14
-
-# Resolve the ASAN C++ library installation paths
-export LIBCXX_ASAN_ROOT="${LIBCXX_ASAN_ROOT:-$(compgen -G "/opt*/libcxx*-asan/" | sort -rV | head -1 || true)}"
-export LIBCXX_ASAN_ROOT="${LIBCXX_ASAN_ROOT%/}"
-
-# Resolve the ASAN Python installation paths
-export CI_ASAN_PYTHON_ROOT="${CI_ASAN_PYTHON_ROOT:-$(compgen -G "/opt*/cpython*-asan/" | sort -rV | head -1 || true)}"
-export CI_ASAN_PYTHON_ROOT="${CI_ASAN_PYTHON_ROOT%/}"
-if [[ -n "${CI_ASAN_PYTHON_ROOT}" ]]; then
-    export CI_ASAN_PYTHON_REAL="$(compgen -G "${CI_ASAN_PYTHON_ROOT}/bin/python3.*" | grep -E '/python3\.[0-9]+$' | sort -rV | head -1 || true)"
-    export CI_ASAN_PIP="$(compgen -G "${CI_ASAN_PYTHON_ROOT}/bin/pip3.*" | sort -rV | head -1 || true)"
-    export CI_ASAN_SITE_ROOT=/tmp/asan-python-path
-    export CI_ASAN_PYTHON=/tmp/python-asan-wrapper
-    mkdir -p "${CI_ASAN_SITE_ROOT}"
-    cat <<'EOF' > "${CI_ASAN_SITE_ROOT}/sitecustomize.py"
-import os
-
-libcxx_root = os.environ.get("CI_ASAN_LIBCXX_ROOT")
-if libcxx_root:
-    asan_lib_dir = os.path.join(libcxx_root, "lib")
-    ld_library_path = os.environ.get("LD_LIBRARY_PATH")
-    if ld_library_path:
-        filtered = [p for p in ld_library_path.split(":") if os.path.normpath(p) != os.path.normpath(asan_lib_dir)]
-        if filtered:
-            os.environ["LD_LIBRARY_PATH"] = ":".join(filtered)
-        else:
-            os.environ.pop("LD_LIBRARY_PATH", None)
-
-    preload_path = os.path.join(asan_lib_dir, "libc++abi.so")
-    ld_preload = os.environ.get("LD_PRELOAD")
-    if ld_preload:
-        filtered = [p for p in ld_preload.split(":") if os.path.normpath(p) != os.path.normpath(preload_path)]
-        if filtered:
-            os.environ["LD_PRELOAD"] = ":".join(filtered)
-        else:
-            os.environ.pop("LD_PRELOAD", None)
-EOF
-    cat <<EOF > "${CI_ASAN_PYTHON}"
-#!/bin/sh
-export CI_ASAN_LIBCXX_ROOT="${LIBCXX_ASAN_ROOT}"
-export LD_LIBRARY_PATH="${LIBCXX_ASAN_ROOT}/lib:\${LD_LIBRARY_PATH:-}"
-export LD_PRELOAD="${LIBCXX_ASAN_ROOT}/lib/libc++abi.so\${LD_PRELOAD:+:\$LD_PRELOAD}"
-export PYTHONPATH="${CI_ASAN_SITE_ROOT}:\${PYTHONPATH:-}"
-exec "${CI_ASAN_PYTHON_REAL}" "\$@"
-EOF
-    chmod +x "${CI_ASAN_PYTHON}"
+if [[ -e "${CI_TOOLCHAIN_ENV_DIR}/env-python-tsan.sh" ]]; then
+    source "${CI_TOOLCHAIN_ENV_DIR}/env-python-tsan.sh"
+    export CI_TSAN_PYTHON_ROOT="${OPT_TSAN_PYTHON_ROOT}"
+    export CI_TSAN_PYTHON="${OPT_TSAN_PYTHON}"
+    export CI_TSAN_PIP="${OPT_TSAN_PIP}"
 else
+    export CI_TSAN_PYTHON_ROOT=""
+    export CI_TSAN_PYTHON=""
+    export CI_TSAN_PIP=""
+fi
+
+# Resolve the ASAN Python installation paths. The image's env-python-asan.sh
+# also resolves LIBCXX_ASAN_ROOT and stages the wrapper interpreter that
+# LD_PRELOADs the instrumented libc++abi (see that script for the
+# __cxa_throw rationale).
+if [[ -e "${CI_TOOLCHAIN_ENV_DIR}/env-python-asan.sh" ]]; then
+    source "${CI_TOOLCHAIN_ENV_DIR}/env-python-asan.sh"
+    export CI_ASAN_PYTHON_ROOT="${OPT_ASAN_PYTHON_ROOT}"
+    export CI_ASAN_PYTHON_REAL="${OPT_ASAN_PYTHON_REAL}"
+    export CI_ASAN_PYTHON="${OPT_ASAN_PYTHON}"
+    export CI_ASAN_PIP="${OPT_ASAN_PIP}"
+else
+    export CI_ASAN_PYTHON_ROOT=""
     export CI_ASAN_PYTHON=""
     export CI_ASAN_PYTHON_REAL=""
     export CI_ASAN_PIP=""
@@ -177,7 +163,7 @@ ci_set_variant_flags() {
             export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DWITH_BFD=OFF -DWITH_LLVM=ON -DINTEGER_CLASS=boostmp ${user_cmake_args}"
             ;;
         glibcxxdbg)
-            export CXXFLAGS="-Og -g -ggdb3 -std=c++20 -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_GLIBCXX_ASSERTIONS -D_GLIBCXX_SANITIZE_VECTOR -fsized-deallocation"
+            source "${CI_TOOLCHAIN_ENV_DIR}/env-glibcxxdbg.sh"
             export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DWITH_BFD=OFF -DWITH_LLVM=OFF -DINTEGER_CLASS=boostmp ${user_cmake_args}"
             ;;
         tsan)
@@ -189,13 +175,9 @@ ci_set_variant_flags() {
             export CCACHE_CPP2=true
             ;;
         asan)
+            source "${CI_TOOLCHAIN_ENV_DIR}/env-asan.sh"
             test -d "${LIBCXX_ASAN_ROOT}"
-            export CXXFLAGS="-std=c++20 -fsanitize=address -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsized-deallocation -stdlib++-isystem ${LIBCXX_ASAN_ROOT}/include/c++/v1 -ferror-limit=5"
-            export LDFLAGS="-fsanitize=address -Wl,-rpath,${LIBCXX_ASAN_ROOT}/lib -L${LIBCXX_ASAN_ROOT}/lib -lc++ -lc++abi -stdlib=libc++"
             export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DWITH_BFD=OFF -DWITH_LLVM=OFF -DINTEGER_CLASS=boostmp -DWITH_SYMENGINE_RCP=ON -DHAVE_GCC_ABI_DEMANGLE=no ${user_cmake_args}"
-            export CC="${CLANG_CC:-clang}"
-            export CXX="${CLANG_CXX:-clang++}"
-            export CCACHE_CPP2=true
             local symbolizer_path
             symbolizer_path=$(command -v llvm-symbolizer || true)
             if [[ -n "$symbolizer_path" ]]; then
@@ -206,13 +188,13 @@ ci_set_variant_flags() {
             export LSAN_OPTIONS="suppressions=${SUPERPROJECT_ROOT}/.ci/lsan_suppressions.txt"
             ;;
         msan)
-            test -d "${LIBCXX_MSAN_ROOT}"
-            export CXXFLAGS="-std=c++20 -fsanitize=memory -fsanitize-memory-track-origins=2 -fsanitize-memory-param-retval -fsized-deallocation -stdlib++-isystem ${LIBCXX_MSAN_ROOT}/include/c++/v1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1 -glldb"
-            export LDFLAGS="-fsanitize=memory -fsanitize-memory-track-origins=2 -Wl,-rpath,${LIBCXX_MSAN_ROOT}/lib -L${LIBCXX_MSAN_ROOT}/lib  -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind -lc++abi"
+            # env-msan.sh appends the sanitizer/stdlib flags to pre-seeded
+            # base flags (and errors out if the instrumented libc++ is absent).
+            export CXXFLAGS="-std=c++20"
+            export CFLAGS=""
+            export LDFLAGS=""
+            source "${CI_TOOLCHAIN_ENV_DIR}/env-msan.sh"
             export CMAKE_ARGS="-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Debug -DWITH_BFD=OFF -DWITH_LLVM=OFF -DINTEGER_CLASS=boostmp -DWITH_SYMENGINE_RCP=ON  -DHAVE_GCC_ABI_DEMANGLE=no ${user_cmake_args}"
-            export CC="${CLANG_CC:-clang}"
-            export CXX="${CLANG_CXX:-clang++}"
-            export CCACHE_CPP2=true
             ;;
         tcmalloc)
             export CXXFLAGS="-std=c++20"

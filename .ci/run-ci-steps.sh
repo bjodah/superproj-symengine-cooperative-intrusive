@@ -5,11 +5,10 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "$0")
 source "${SCRIPT_DIR}/ci-common.sh"
 
+# LIBCXX_ASAN_ROOT comes from ci-common.sh sourcing the image's
+# env-python-asan.sh; LIBCXX_MSAN_ROOT is resolved by env-msan.sh when the
+# msan variant is selected.
 export SYMENGINE_RCP_CHOICE=cooperative_intrusive
-export LIBCXX_ASAN_ROOT="$(compgen -G "/opt*/libcxx*-asan/" | sort -rV | head -1 || true)"
-export LIBCXX_ASAN_ROOT="${LIBCXX_ASAN_ROOT%/}"
-export LIBCXX_MSAN_ROOT="$(compgen -G "/opt*/libcxx*-msan/" | sort -rV | head -1 || true)"
-export LIBCXX_MSAN_ROOT="${LIBCXX_MSAN_ROOT%/}"
 
 # Check for ASAN toolchain and determine if we should run the ASAN lane
 RUN_ASAN=yes
@@ -37,26 +36,27 @@ else
     fi
 fi
 
+# The package lists live with the image definition
+# (bjodah-containers/triceratops/env-N/pip-requirements-ci-*.txt) and are
+# pre-installed into the image, so these installs are no-op verifications on a
+# current image (and keep working offline). Keep symengine.py's build backend
+# (hatchling) in the default lane because the later editable install uses
+# --no-build-isolation.
 echo "=== Preparing Default Python Lane ==="
 ci_use_python_toolchain default
-# Install baseline Python tooling needed by CI.
-# Keep symengine.py's build backend in the environment because the later
-# editable install uses --no-build-isolation.
-ci_pip install munch srcml_caller libcst nanobind hatchling pytest numpy scipy sympy scikit-build-core setuptools-scm cython cython-cmake pyyaml jsonschema
+ci_pip install -r "${CI_TOOLCHAIN_ENV_DIR}/pip-requirements-ci-default.txt"
 
 echo "=== Preparing ASAN Python Lane ==="
 if [[ "${RUN_ASAN}" == "yes" ]]; then
     ci_use_python_toolchain asan
-    ci_pip install munch srcml_caller libcst nanobind pytest sympy pyyaml jsonschema
+    ci_pip install -r "${CI_TOOLCHAIN_ENV_DIR}/pip-requirements-ci-sanitizer.txt"
 else
     echo "ASAN lane is disabled or skipped."
 fi
 
 echo "=== Preparing TSAN Python Lane ==="
 ci_use_python_toolchain tsan
-# Keep this lane small, but include the dependencies used by the nbsymengine
-# fixture and shared-case generators.
-ci_pip install nanobind pytest pyyaml jsonschema srcml_caller
+ci_pip install -r "${CI_TOOLCHAIN_ENV_DIR}/pip-requirements-ci-sanitizer.txt"
 
 # --- Default Python Lane Execution ---
 ci_use_python_toolchain default

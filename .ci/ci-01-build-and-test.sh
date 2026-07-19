@@ -1,8 +1,7 @@
 #!/bin/bash
-# Invocation requirement: this script uses set -euxo pipefail and relies on
-# LIBCXX_ASAN_ROOT and LIBCXX_MSAN_ROOT being exported (the asan/msan variants
-# will abort via compgen if they are unset). Always invoke through
-# run-ci-steps.sh, or export those two variables manually before calling.
+# The instrumented-libc++ roots (LIBCXX_ASAN_ROOT / LIBCXX_MSAN_ROOT) are
+# resolved by the toolchain env scripts sourced via ci-common.sh; the asan and
+# msan variants abort in ci_set_variant_flags if they are missing.
 set -euxo pipefail
 
 SCRIPT_DIR=$(dirname "$0")
@@ -25,8 +24,6 @@ fi
 SYMENGINE_SRC=${SUPERPROJECT_ROOT}/symengine
 
 Boost_ROOT=$(compgen -G "${Boost_ROOT:-'/path-not-provided'}" || true)
-LIBCXX_ASAN_ROOT=$(compgen -G "${LIBCXX_ASAN_ROOT:-'/path-not-provided'}" || true)
-LIBCXX_MSAN_ROOT=$(compgen -G "${LIBCXX_MSAN_ROOT:-'/path-not-provided'}" || true)
 
 if [ ! -d "${SYMENGINE_SRC}" ]; then
     >&2 echo "symengine source directory not found at: ${SYMENGINE_SRC}"
