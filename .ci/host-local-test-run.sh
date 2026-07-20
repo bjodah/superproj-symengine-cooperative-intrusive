@@ -28,7 +28,16 @@ main() {
     # into the image by .ci/env/Containerfile; see AGENTS.md), and this is how
     # that property is verified.
     if [[ -n ${CI_PODMAN_NETWORK:-} ]]; then
-        args_podman_run+=("--network=$SXX_PODMAN_NETWORK")
+        args_podman_run+=("--network=$CI_PODMAN_NETWORK")
+    fi
+
+    # CI_TOOLCHAIN_ENV_DIR_HOST=<path to bjodah-containers/triceratops/env-N>
+    # bind-mounts a checkout of the image's toolchain env scripts over the
+    # baked-in /opt-N copies, to iterate on them without rebuilding the image.
+    if [[ -n ${CI_TOOLCHAIN_ENV_DIR_HOST:-} ]]; then
+        args_podman_run+=("-v" "$CI_TOOLCHAIN_ENV_DIR_HOST:/ci-toolchain-env:ro")
+        args_podman_run+=("-e" "CI_TOOLCHAIN_ENV_DIR=/ci-toolchain-env")
+        args_podman_run+=("--security-opt" "label=disable")
     fi
 
     podman run \

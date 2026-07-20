@@ -24,7 +24,6 @@ endif ()
 
 # --- Dependencies -----------------------------------------------------------
 find_package(Python 3.13 COMPONENTS Interpreter Development.Module REQUIRED)
-find_package(Python3 3.13 COMPONENTS Interpreter QUIET)
 find_package(nanobind CONFIG REQUIRED)
 
 # --- Standalone: build SymEngine C++ from source ----------------------------
@@ -98,9 +97,15 @@ if (SYMENGINE_NANOBIND_IN_TREE AND (SYMENGINE_NB_FORCE_REGENERATE OR NOT EXISTS 
             ${SYMENGINE_NB_GENERATED_DIR}/symengine_pydef.cpp.d
         WORKING_DIRECTORY ${SYMENGINE_SRC_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${SYMENGINE_NB_GENERATED_DIR}
+        # Python_EXECUTABLE (not an un-hinted Python3_EXECUTABLE): the ASan CI
+        # lane points it at a wrapper that preloads libc++abi so ASan can
+        # resolve __cxa_throw before extension modules are dlopen'ed.
+        # detect_leaks=0: litgen/srcml leak at exit; codegen output is what
+        # matters here, so keep LeakSanitizer from failing this step.
         COMMAND ${CMAKE_COMMAND} -E env
                 "PYTHONPATH=${SYMENGINE_LITGEN_DIR}"
-                ${Python3_EXECUTABLE}
+                "ASAN_OPTIONS=detect_leaks=0"
+                ${Python_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/generator/generate.py
                 ${CMAKE_CURRENT_SOURCE_DIR}/generator/generate.yaml
                 --output-dir ${SYMENGINE_NB_GENERATED_DIR}
@@ -120,7 +125,9 @@ if (SYMENGINE_NANOBIND_IN_TREE AND (SYMENGINE_NB_FORCE_REGENERATE OR NOT EXISTS 
     add_custom_command(
         OUTPUT ${SYMENGINE_NB_SIMPLE_INC} ${SYMENGINE_NB_SIMPLE_PYI}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${SYMENGINE_NB_GENERATED_DIR}
-        COMMAND ${Python3_EXECUTABLE}
+        COMMAND ${CMAKE_COMMAND} -E env
+                "ASAN_OPTIONS=detect_leaks=0"
+                ${Python_EXECUTABLE}
                 -m tools.binding_codegen generate
                 --language python
                 --output ${SYMENGINE_NB_GENERATED_DIR}
