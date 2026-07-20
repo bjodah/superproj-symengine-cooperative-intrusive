@@ -10,6 +10,7 @@ steps:
 
   - name: build-and-test
     image: *ci_image
+    privileged: true
     environment:
       COMPILER_LAUNCHER: sccache
       LITGEN_ROOT: /opt-6/litgen-6085aaa
