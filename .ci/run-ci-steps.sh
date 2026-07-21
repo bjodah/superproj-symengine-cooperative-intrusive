@@ -75,33 +75,39 @@ env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-01-build-and-test.sh" /tmp/bld-se-
 echo "=== 2. Core C++ glibcxxdbg build ==="
 env SYMENGINE_VARIANT=glibcxxdbg "${SCRIPT_DIR}/ci-01-build-and-test.sh" /tmp/bld-se-glibcxxdbg /tmp/symen-glibcxxdbg
 
-echo "=== 3. nbsymengine debug build ==="
+if [[ "${CI_CXX14_COOPERATIVE_INTRUSIVE:-yes}" == "yes" ]]; then
+    echo "=== 3. Core C++14 thread-safe cooperative-intrusive build ==="
+    env SYMENGINE_VARIANT=cxx14 CMAKE_ARGS="-DWITH_SYMENGINE_THREAD_SAFE=yes" \
+        "${SCRIPT_DIR}/ci-01-build-and-test.sh" /tmp/bld-se-cxx14 /tmp/symen-cxx14
+fi
+
+echo "=== 4. nbsymengine debug build ==="
 env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-02-build-and-test-nbsymengine.sh" /tmp/bld-nbse-debug
 
-echo "=== 4. nbsymengine_compat debug tests ==="
+echo "=== 5. nbsymengine_compat debug tests ==="
 "${SCRIPT_DIR}/ci-03-build-and-test-nbsymengine_compat.sh" /tmp/bld-nbse-debug
 
-echo "=== 5. nbsymengine glibcxxdbg build ==="
+echo "=== 6. nbsymengine glibcxxdbg build ==="
 env SYMENGINE_VARIANT=glibcxxdbg "${SCRIPT_DIR}/ci-02-build-and-test-nbsymengine.sh" /tmp/bld-nbse-glibcxxdbg
 
-echo "=== 6. Leak tests ==="
+echo "=== 7. Leak tests ==="
 "${SCRIPT_DIR}/ci-04-leak-test.sh" /tmp/bld-nbse-debug
 
-echo "=== 7. Perl XS extension build and tests ==="
+echo "=== 8. Perl XS extension build and tests ==="
 ci_use_perl_toolchain
 env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-05-build-and-test-perl.sh" /tmp/bld-perl-debug
 
-echo "=== 8. PHP extension build and tests ==="
+echo "=== 9. PHP extension build and tests ==="
 ci_use_php_toolchain
 # Reuse the debug SymEngine build installed by lane 1. The PHP extension is
 # built out of tree and links against that install tree; no second core build
 # is needed here.
 env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-06-build-and-test-php.sh" /tmp/bld-se-debug /tmp/symen-debug /tmp/bld-php-ext
 
-echo "=== 9. Swift package build and tests ==="
+echo "=== 10. Swift package build and tests ==="
 env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-07-build-and-test-swift.sh" /tmp/bld-se-swift /tmp/bld-swift-package
 
-echo "=== 10. Java JNI build and tests (ordinary RCP) ==="
+echo "=== 11. Java JNI build and tests (ordinary RCP) ==="
 ci_use_java_toolchain
 env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-08-build-and-test-java.sh" /tmp/bld-java-debug
 
@@ -109,20 +115,20 @@ env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-08-build-and-test-java.sh" /tmp/bl
 if [[ "${RUN_ASAN}" == "yes" ]]; then
     ci_use_python_toolchain asan
 
-    echo "=== 11. Core C++ ASAN build ==="
+    echo "=== 12. Core C++ ASAN build ==="
     env SYMENGINE_VARIANT=asan "${SCRIPT_DIR}/ci-01-build-and-test.sh" /tmp/bld-se-asan /tmp/symen-asan
 
-    echo "=== 12. nbsymengine ASAN build ==="
+    echo "=== 13. nbsymengine ASAN build ==="
     env SYMENGINE_VARIANT=asan "${SCRIPT_DIR}/ci-02-build-and-test-nbsymengine.sh" /tmp/bld-nbse-asan
 fi
 
 # --- TSAN Python Lane Execution ---
 ci_use_python_toolchain tsan
 
-echo "=== 13. Core C++ TSAN build ==="
+echo "=== 14. Core C++ TSAN build ==="
 env SYMENGINE_VARIANT=tsan "${SCRIPT_DIR}/ci-01-build-and-test.sh" /tmp/bld-se-tsan /tmp/symen-tsan
 
-echo "=== 14. nbsymengine TSAN build ==="
+echo "=== 15. nbsymengine TSAN build ==="
 env SYMENGINE_VARIANT=tsan "${SCRIPT_DIR}/ci-02-build-and-test-nbsymengine.sh" /tmp/bld-nbse-tsan
 
 echo "=== CI steps completed successfully ==="

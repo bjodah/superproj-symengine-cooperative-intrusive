@@ -166,6 +166,12 @@ ci_set_variant_flags() {
             source "${CI_TOOLCHAIN_ENV_DIR}/env-glibcxxdbg.sh"
             export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DWITH_BFD=OFF -DWITH_LLVM=OFF -DINTEGER_CLASS=boostmp ${user_cmake_args}"
             ;;
+        cxx14)
+            # Keep a pre-C++17 core lane: cooperative hook pointer aliases
+            # must remain parseable by supported C++11/C++14 consumers.
+            export CXXFLAGS="-std=c++14"
+            export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DWITH_BFD=OFF -DWITH_LLVM=OFF -DINTEGER_CLASS=boostmp ${user_cmake_args}"
+            ;;
         tsan)
             # Compose from the image's fragments instead of taking its full
             # default CXXFLAGS, to keep -std/-ggdb3/-fsized-deallocation.
