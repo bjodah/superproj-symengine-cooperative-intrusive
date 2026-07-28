@@ -67,8 +67,12 @@ fi
 mkdir -p "${PHP_EXT_BUILD}"
 cd "${PHP_EXT_BUILD}"
 
-# Copy source files (out-of-tree build to keep source clean)
-rsync -a --exclude='.git' --exclude='build' --exclude='modules' --exclude='.libs' \
+# Copy source files. phpize/configure/make all write into the directory they
+# run in, so each variant gets its own copy rather than sharing (and dirtying)
+# the checkout. Shared binding glue is rendered by configure into
+# ./generated/, so nothing generated is copied in or out.
+rsync -a --exclude='.git' --exclude='build' --exclude='generated' \
+    --exclude='modules' --exclude='.libs' \
     --exclude='autom4te.cache' --exclude='configure' \
     --exclude='Makefile*' --exclude='*.log' \
     --exclude='*.la' --exclude='*.lo' --exclude='*.o' \
@@ -97,6 +101,8 @@ export LD_LIBRARY_PATH="${SYMENGINE_INSTALL}/lib64:${SYMENGINE_INSTALL}/lib:${LD
 # shutdown, so suppress those allocator diagnostics while retaining the
 # functional PHPT assertions.
 export ZEND_ALLOC_PRINT_LEAKS=0
-php run-tests.php -d extension=modules/symengine.so tests/*.phpt
+# generated/090-shared-cases.phpt is rendered by configure from
+# binding-spec/test-cases.yaml; it lives in the build directory, not in tests/.
+php run-tests.php -d extension=modules/symengine.so tests/*.phpt generated/090-shared-cases.phpt
 
 echo "=== PHP extension build and test completed successfully ==="

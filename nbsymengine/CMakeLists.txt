@@ -120,29 +120,37 @@ if (SYMENGINE_NANOBIND_IN_TREE AND (SYMENGINE_NB_FORCE_REGENERATE OR NOT EXISTS 
     add_custom_target(symengine_nb_generate DEPENDS ${SYMENGINE_NB_GENERATED})
 
     # Generate shared-spec adapter-family bindings and matching declarations.
+    # The generator wiring (and its DEPENDS list) is shared with every other
+    # wrapper; the litgen command above is a different generator and stays put.
+    if (NOT COMMAND symengine_binding_codegen)
+        include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BindingCodegen.cmake")
+    endif ()
+
     set(SYMENGINE_NB_SIMPLE_INC "${SYMENGINE_NB_GENERATED_DIR}/symengine_simple_funcs.inc")
     set(SYMENGINE_NB_SIMPLE_PYI "${SYMENGINE_NB_GENERATED_DIR}/symengine_simple_funcs.pyi")
-    add_custom_command(
-        OUTPUT ${SYMENGINE_NB_SIMPLE_INC} ${SYMENGINE_NB_SIMPLE_PYI}
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${SYMENGINE_NB_GENERATED_DIR}
-        COMMAND ${CMAKE_COMMAND} -E env
-                "ASAN_OPTIONS=detect_leaks=0"
-                ${Python_EXECUTABLE}
-                -m tools.binding_codegen generate
-                --language python
-                --output ${SYMENGINE_NB_GENERATED_DIR}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        DEPENDS
-            ${CMAKE_SOURCE_DIR}/binding-spec/api.yaml
-            ${CMAKE_SOURCE_DIR}/binding-spec/schema.json
-            ${CMAKE_SOURCE_DIR}/tools/binding_codegen/model.py
-            ${CMAKE_SOURCE_DIR}/tools/binding_codegen/inspect_cpp.py
-            ${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_common.py
-            ${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_nbsymengine.py
-            ${CMAKE_SOURCE_DIR}/tools/binding_codegen/__main__.py
-        COMMENT "Generating shared-spec Python adapter bindings"
-        VERBATIM)
-    add_custom_target(symengine_nb_simple_funcs DEPENDS ${SYMENGINE_NB_SIMPLE_INC})
+    symengine_binding_codegen(
+        LANGUAGE python
+        OUTPUT_DIR ${SYMENGINE_NB_GENERATED_DIR}
+        OUTPUTS ${SYMENGINE_NB_SIMPLE_INC} ${SYMENGINE_NB_SIMPLE_PYI}
+        TARGET symengine_nb_simple_funcs
+        # Python_EXECUTABLE (not an un-hinted Python3_EXECUTABLE): the ASan CI
+        # lane points it at a wrapper that preloads libc++abi.
+        PYTHON ${Python_EXECUTABLE}
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0"
+        COMMENT "Generating shared-spec Python adapter bindings")
+
+    # The shared behavioral test cases live next to the other wrappers'
+    # binding-generated output so every lane consumes them the same way.
+    set(SYMENGINE_NB_SHARED_CASES_DIR "${CMAKE_BINARY_DIR}/binding-generated/python")
+    symengine_binding_codegen(
+        LANGUAGE python
+        OUTPUT_DIR ${SYMENGINE_NB_SHARED_CASES_DIR}
+        OUTPUTS "${SYMENGINE_NB_SHARED_CASES_DIR}/test_shared_cases.py"
+        TARGET symengine_nb_shared_cases
+        ALL
+        PYTHON ${Python_EXECUTABLE}
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0"
+        COMMENT "Generating shared-spec Python behavioral tests")
 else ()
     # Standalone or sdist build: use pre-generated files from generated/ directory
     set(SYMENGINE_NB_GENERATED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/generated")

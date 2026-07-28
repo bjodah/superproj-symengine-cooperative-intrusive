@@ -62,13 +62,15 @@ fi
 # active lane uses a non-default Python toolchain.
 export NBSYMENGINE_SUBPROCESS_PYTHON="${CI_PYTHON}"
 
-# Render the shared behavioral test cases (binding-spec/test-cases.yaml) into a
-# scratch directory and run them against this build's nbsymengine, mirroring
-# every other wrapper lane's shared_cases coverage. Generation stays out of
-# the nbsymengine submodule; only .ci/ owns this wiring.
+# Run the shared behavioral test cases (binding-spec/test-cases.yaml) against
+# this build's nbsymengine, mirroring every other wrapper lane's shared_cases
+# coverage. The build renders them (cmake/BindingCodegen.cmake, target
+# symengine_nb_shared_cases); this lane only consumes the build-tree copy.
 SHARED_CASES_DIR="${SYMENGINE_BUILD}/binding-generated/python"
-(cd "${SUPERPROJECT_ROOT}" && "$CI_PYTHON" -m tools.binding_codegen generate \
-    --language python --output "${SHARED_CASES_DIR}")
+if [[ ! -f "${SHARED_CASES_DIR}/test_shared_cases.py" ]]; then
+    >&2 echo "Error: ${SHARED_CASES_DIR}/test_shared_cases.py missing; the build should have rendered it."
+    exit 1
+fi
 PYTHONPATH="${SYMENGINE_BUILD}:${PYTHONPATH:-}" ${TSAN_PREFIX} "$CI_PYTHON" -m pytest -x \
     "${SHARED_CASES_DIR}/test_shared_cases.py" --tb=short -q
 

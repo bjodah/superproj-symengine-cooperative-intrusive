@@ -21,27 +21,14 @@ set(SYMENGINE_JAVA_GENERATED_CPP "${SYMENGINE_JAVA_GENERATED_DIR}/symengine_jni_
 set(SYMENGINE_JAVA_GENERATED_SHARED_TEST "${SYMENGINE_JAVA_GENERATED_DIR}/SharedCasesTest.java")
 get_target_property(SYMENGINE_JAVA_SYMENGINE_INCLUDE_DIRS symengine INCLUDE_DIRECTORIES)
 
-add_custom_command(
-    OUTPUT "${SYMENGINE_JAVA_GENERATED_JNI}" "${SYMENGINE_JAVA_GENERATED_API}"
-           "${SYMENGINE_JAVA_GENERATED_CPP}" "${SYMENGINE_JAVA_GENERATED_SHARED_TEST}"
-    COMMAND "${Python3_EXECUTABLE}" -m tools.binding_codegen generate
-            --language java --output "${SYMENGINE_JAVA_GENERATED_DIR}"
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    DEPENDS "${CMAKE_SOURCE_DIR}/binding-spec/api.yaml"
-            "${CMAKE_SOURCE_DIR}/binding-spec/schema.json"
-            "${CMAKE_SOURCE_DIR}/binding-spec/test-cases.yaml"
-            "${CMAKE_SOURCE_DIR}/binding-spec/test-cases.schema.json"
-            "${CMAKE_SOURCE_DIR}/tools/binding_codegen/__main__.py"
-            "${CMAKE_SOURCE_DIR}/tools/binding_codegen/model.py"
-            "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_common.py"
-            "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_java.py"
-            "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_tests.py"
-            "${CMAKE_SOURCE_DIR}/tools/binding_codegen/test_cases.py"
-    COMMENT "Generating Java JNI binding surface"
-    VERBATIM)
-add_custom_target(symengine_java_generated
-    DEPENDS "${SYMENGINE_JAVA_GENERATED_JNI}" "${SYMENGINE_JAVA_GENERATED_API}"
-            "${SYMENGINE_JAVA_GENERATED_CPP}" "${SYMENGINE_JAVA_GENERATED_SHARED_TEST}")
+symengine_binding_codegen(
+    LANGUAGE java
+    OUTPUT_DIR "${SYMENGINE_JAVA_GENERATED_DIR}"
+    OUTPUTS "${SYMENGINE_JAVA_GENERATED_JNI}" "${SYMENGINE_JAVA_GENERATED_API}"
+            "${SYMENGINE_JAVA_GENERATED_CPP}" "${SYMENGINE_JAVA_GENERATED_SHARED_TEST}"
+    TARGET symengine_java_generated
+    PYTHON "${Python3_EXECUTABLE}"
+    COMMENT "Generating Java JNI binding surface")
 
 set(SYMENGINE_JAVA_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/main/java")
 set(CMAKE_JAVA_COMPILE_FLAGS --release 21)

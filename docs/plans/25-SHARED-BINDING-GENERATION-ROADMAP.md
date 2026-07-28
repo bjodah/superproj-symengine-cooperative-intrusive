@@ -5,6 +5,19 @@
 Phase 2: cbb816b, Phase 3: 9aa0bbc, Phase 4: e5a5542, fixture/check/matrix:
 a74a6dd+72b31ef, Phase 5: bf548ce+b1614dc. The sdist `GENERATION_MANIFEST` item
 under "Build and CI integration" remains deferred.
+
+**Status note (2026-07-28), generator invocation unified:** every CMake caller
+now goes through `cmake/BindingCodegen.cmake`'s `symengine_binding_codegen()`,
+which owns the single canonical DEPENDS list (spec, schema, test cases, and all
+`tools/binding_codegen/*.py` sources). Call sites: the Perl block in
+`CMakeLists.txt`, `symengine.java/CMakeLists.txt`, and the two shared-spec
+commands in `nbsymengine/CMakeLists.txt` (adapter glue plus the shared
+behavioral pytest file, now rendered by the build into
+`<build>/binding-generated/python/` instead of by `.ci/ci-02-*`). The litgen
+command in `nbsymengine/CMakeLists.txt` is a different generator and is
+untouched. `symengine.php/config.m4` no longer writes into the tracked source
+tree: it renders into `$abs_builddir/generated` and adds that directory to
+`INCLUDES`, so a configure+build leaves `git status` clean.
 **Audience:** Developer implementing shared codegen across the language wrappers.
 
 ## Purpose
@@ -108,6 +121,11 @@ Generated files should go to build directories, not source directories. The
 one exception is a published wrapper repository that cannot access the shared
 spec at build time: it may commit a generated snapshot, but CI must reproduce
 that snapshot with `python -m tools.binding_codegen check`.
+
+Build systems that have no separate build tree of their own still honour this:
+`symengine.php/config.m4` renders into `$abs_builddir/generated` (ignored by
+`symengine.php/.gitignore` for the usual in-tree `phpize` build), and the Swift
+plugin renders into SwiftPM's plugin work directory.
 
 If these wrappers later move to separate repositories, move `binding-spec/` and
 the generator into a small versioned repository or Python package. Each wrapper
@@ -500,9 +518,23 @@ python -m tools.binding_codegen check
 
 `check` should generate into a temporary directory and compare committed
 snapshots where snapshots are necessary. It should never rewrite the working
-tree. CMake custom commands must list the spec, schema, renderer, and templates
-in `DEPENDS` so edits trigger regeneration (the existing
-`gen_simple_functions.py` wiring in `nbsymengine/CMakeLists.txt` is the model).
+tree. Every build-system caller must list the spec, schema, test cases, and all
+generator sources in `DEPENDS` so edits trigger regeneration. That list is
+maintained once, in `cmake/BindingCodegen.cmake`; CMake callers invoke
+
+```cmake
+symengine_binding_codegen(
+    LANGUAGE <python|perl|php|swift|java>
+    OUTPUT_DIR <build-tree dir>
+    OUTPUTS <generated files>
+    [ARTIFACT <all|cpp|api|tests>] [TARGET <name>] [ALL]
+    [PYTHON <interpreter>] [ENVIRONMENT <VAR=value>...] [DEPENDS ...] [COMMENT ...])
+```
+
+rather than repeating the command and its dependency list. The non-CMake
+callers (`symengine.php/config.m4`,
+`symengine.swift/Plugins/BindingCodegenPlugin`) run the same CLI keyed on
+`BINDING_CODEGEN_ROOT`/`BINDING_CODEGEN_PYTHON`.
 
 Add a CI job that runs validation and every renderer without compiling — it is
 cheap and keeps renderers honest even for languages whose toolchain lane is

@@ -73,7 +73,9 @@ if test "$PHP_SYMENGINE" != "no"; then
     AC_DEFINE(SYMENGINE_PHP_DEBUG_HELPERS, 1, [Whether SymEngine PHP debug ownership helpers are enabled])
   fi
 
-  dnl Keep generated glue in the phpize build/source tree, never in git. A
+  dnl Generated glue goes to the build directory ($abs_builddir/generated),
+  dnl never into the tracked source tree. phpize builds are usually in-tree,
+  dnl so symengine.php/.gitignore ignores /generated/ for that case. A
   dnl standalone wrapper checkout supplies BINDING_CODEGEN_ROOT explicitly;
   dnl the normal super-project layout is discovered from the source parent.
   AC_ARG_VAR([BINDING_CODEGEN_ROOT], [super-project root containing binding-spec/])
@@ -87,16 +89,26 @@ if test "$PHP_SYMENGINE" != "no"; then
   if test -z "$BINDING_CODEGEN_PYTHON"; then
     BINDING_CODEGEN_PYTHON=python3
   fi
-  AC_MSG_NOTICE([generating shared PHP binding glue into $srcdir/src])
+  SYMENGINE_GENERATED_DIR="$abs_builddir/generated"
+  PHP_ADD_BUILD_DIR([$SYMENGINE_GENERATED_DIR], [1])
+  AC_MSG_NOTICE([generating shared PHP binding glue into $SYMENGINE_GENERATED_DIR])
   PYTHONPATH="$BINDING_CODEGEN_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
     "$BINDING_CODEGEN_PYTHON" -m tools.binding_codegen generate \
-      --language php --output "$srcdir/src" || AC_MSG_ERROR([shared PHP binding generation failed])
+      --language php --output "$SYMENGINE_GENERATED_DIR" \
+      || AC_MSG_ERROR([shared PHP binding generation failed])
 
-  dnl Same generation call also emits shared_cases.phpt into src/; copy it
-  dnl into tests/ so run-tests.php's tests/*.phpt glob picks it up.
-  AC_MSG_NOTICE([generating shared PHP behavioral test case into $srcdir/tests])
-  cp "$srcdir/src/shared_cases.phpt" "$srcdir/tests/090-shared-cases.phpt" \
-    || AC_MSG_ERROR([copying generated shared_cases.phpt failed])
+  dnl src/symengine_php.cpp includes the generated .inc files by bare name.
+  PHP_ADD_INCLUDE([$SYMENGINE_GENERATED_DIR])
+
+  dnl The same generation call emits shared_cases.phpt; give it a numbered name
+  dnl so run-tests.php orders it with the hand-written tests/*.phpt suite.
+  cp "$SYMENGINE_GENERATED_DIR/shared_cases.phpt" \
+     "$SYMENGINE_GENERATED_DIR/090-shared-cases.phpt" \
+    || AC_MSG_ERROR([naming generated shared_cases.phpt failed])
 
   PHP_NEW_EXTENSION(symengine, src/module.cpp src/symengine_php.cpp src/cooperative_hooks.cpp, $ext_shared, , -std=c++17)
+
+  dnl Objects for src/*.cpp are written to $abs_builddir/src, which only exists
+  dnl by accident for the usual in-tree phpize build.
+  PHP_ADD_BUILD_DIR([src])
 fi

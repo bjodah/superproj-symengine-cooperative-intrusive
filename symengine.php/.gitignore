@@ -1,5 +1,8 @@
 # Generated build artifacts
 /build/
+# Shared binding glue rendered by configure ($abs_builddir/generated); an
+# in-tree phpize build puts it here.
+/generated/
 /configure
 /configure~
 /config.log

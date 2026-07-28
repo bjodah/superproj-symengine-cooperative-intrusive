@@ -12,6 +12,10 @@ project(symengine_superproject LANGUAGES C CXX)
 
 enable_testing()
 
+# Shared invocation of the binding generator (binding-spec/ -> wrapper glue).
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+include(BindingCodegen)
+
 if (NOT nanobind_DIR)
     set(SYMENGINE_VENDORED_NANOBIND_DIR
         "${CMAKE_SOURCE_DIR}/nbsymengine/external/nanobind/cmake")
@@ -77,16 +81,21 @@ if (BUILD_PERL_XS)
     set(SYMENGINE_PERL_GENERATED_XS "${SYMENGINE_PERL_BUILD_DIR}/xs/SymEngine.generated.xs.inc")
     set(SYMENGINE_PERL_GENERATED_SHARED_TEST "${SYMENGINE_PERL_BUILD_DIR}/t/07-shared-cases.t")
 
+    symengine_binding_codegen(
+        LANGUAGE perl
+        OUTPUT_DIR "${SYMENGINE_PERL_GENERATED_DIR}"
+        OUTPUTS "${SYMENGINE_PERL_GENERATED_DIR}/SymEngine.generated.xs.inc"
+                "${SYMENGINE_PERL_GENERATED_DIR}/SymEngine.generated.exports"
+                "${SYMENGINE_PERL_GENERATED_DIR}/shared_cases.t"
+        PYTHON "${Python3_EXECUTABLE}"
+        COMMENT "Generating shared-spec Perl XS glue and behavioral tests")
+
     add_custom_command(
         OUTPUT "${SYMENGINE_PERL_MAKEFILE}" "${SYMENGINE_PERL_GENERATED_XS}" "${SYMENGINE_PERL_GENERATED_SHARED_TEST}"
         COMMAND "${CMAKE_COMMAND}" -E rm -rf "${SYMENGINE_PERL_BUILD_DIR}"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory
                 "${SYMENGINE_PERL_SOURCE_DIR}"
                 "${SYMENGINE_PERL_BUILD_DIR}"
-        COMMAND "${CMAKE_COMMAND}" -E env
-                "PYTHONPATH=${CMAKE_SOURCE_DIR}"
-                "${Python3_EXECUTABLE}" -m tools.binding_codegen generate
-                --language perl --output "${SYMENGINE_PERL_GENERATED_DIR}"
         COMMAND "${CMAKE_COMMAND}" -E copy
                 "${SYMENGINE_PERL_GENERATED_DIR}/SymEngine.generated.xs.inc"
                 "${SYMENGINE_PERL_GENERATED_XS}"
@@ -105,16 +114,8 @@ if (BUILD_PERL_XS)
                 "${SYMENGINE_PERL_SOURCE_DIR}/xs/SymEngine.xs"
                 "${SYMENGINE_PERL_SOURCE_DIR}/xs/perl_symengine.cpp"
                 "${SYMENGINE_PERL_SOURCE_DIR}/xs/perl_symengine.h"
-                "${CMAKE_SOURCE_DIR}/binding-spec/api.yaml"
-                "${CMAKE_SOURCE_DIR}/binding-spec/schema.json"
-                "${CMAKE_SOURCE_DIR}/binding-spec/test-cases.yaml"
-                "${CMAKE_SOURCE_DIR}/binding-spec/test-cases.schema.json"
-                "${CMAKE_SOURCE_DIR}/tools/binding_codegen/__main__.py"
-                "${CMAKE_SOURCE_DIR}/tools/binding_codegen/model.py"
-                "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_common.py"
-                "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_perl.py"
-                "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_tests.py"
-                "${CMAKE_SOURCE_DIR}/tools/binding_codegen/test_cases.py"
+                "${SYMENGINE_PERL_GENERATED_DIR}/SymEngine.generated.xs.inc"
+                "${SYMENGINE_PERL_GENERATED_DIR}/shared_cases.t"
         COMMENT "Configuring symengine.pl Perl XS extension"
         VERBATIM)
 

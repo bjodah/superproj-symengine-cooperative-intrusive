@@ -405,8 +405,9 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_symengine_eq, 0, 2, _IS_BOOL, 0)
     ZEND_ARG_OBJ_INFO(0, b, SymEngine\\Basic, 0)
 ZEND_END_ARG_INFO()
 
-// Generated module-level constants and expression operations. This include is
-// written by configure into the out-of-tree extension source directory.
+// Generated module-level constants and expression operations. configure writes
+// this include into $abs_builddir/generated and adds that directory to
+// INCLUDES; nothing generated is ever written into the tracked source tree.
 #include "symengine_php_generated.inc"
 
 PHP_FUNCTION(symengine_minus_one)
