@@ -1,37 +1,23 @@
 --TEST--
-Phase 0 shared API smoke surface
+Bootstrap surface (arithmetic/constants live in the generated shared cases)
 --SKIPIF--
 <?php if (!extension_loaded('symengine')) die('skip symengine extension not loaded'); ?>
 --FILE--
 <?php
+// The arithmetic, constant and string expectations that used to be repeated
+// here now live in binding-spec/test-cases.yaml and are rendered into
+// generated/090-shared-cases.phpt.  What remains is what that shared schema
+// cannot express: the hand-written factory functions and symengine_eq().
 $x = symengine_symbol('phase0_x');
 $two = symengine_integer(2);
 
 echo symengine_str($x), "\n";
 echo symengine_str($two), "\n";
-echo symengine_str(symengine_zero()), "\n";
-echo symengine_str(symengine_one()), "\n";
-echo symengine_str(symengine_pi()), "\n";
-echo symengine_str(symengine_add($x, $two)), "\n";
-echo symengine_str(symengine_sub($x, $two)), "\n";
-echo symengine_str(symengine_mul($x, $two)), "\n";
-echo symengine_str(symengine_div($x, $two)), "\n";
-echo symengine_str(symengine_pow($x, $two)), "\n";
-echo symengine_str(symengine_neg($x)), "\n";
 var_export(symengine_eq($x, symengine_symbol('phase0_x'))); echo "\n";
 var_export(symengine_eq($x, symengine_symbol('phase0_y'))); echo "\n";
 ?>
 --EXPECT--
 phase0_x
 2
-0
-1
-pi
-2 + phase0_x
--2 + phase0_x
-2*phase0_x
-(1/2)*phase0_x
-phase0_x**2
--phase0_x
 true
 false

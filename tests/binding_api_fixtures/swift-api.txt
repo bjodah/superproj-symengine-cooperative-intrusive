@@ -16,13 +16,24 @@ void symengine_swift_delete_external(symengine_swift_basic_ref value, void *expe
 symengine_swift_basic_kind symengine_swift_kind(symengine_swift_basic_ref value)
 int symengine_swift_is_external_owned(symengine_swift_basic_ref value)
 symengine_swift_basic_ref symengine_swift_add(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_catalan()
+symengine_swift_basic_ref symengine_swift_complex_inf()
 symengine_swift_basic_ref symengine_swift_div(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_e()
+symengine_swift_basic_ref symengine_swift_euler_gamma()
+symengine_swift_basic_ref symengine_swift_golden_ratio()
+symengine_swift_basic_ref symengine_swift_i()
+symengine_swift_basic_ref symengine_swift_inf()
+symengine_swift_basic_ref symengine_swift_minus_one()
 symengine_swift_basic_ref symengine_swift_mul(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_nan()
 symengine_swift_basic_ref symengine_swift_neg(symengine_swift_basic_ref a)
+symengine_swift_basic_ref symengine_swift_neg_inf()
 symengine_swift_basic_ref symengine_swift_one()
 symengine_swift_basic_ref symengine_swift_pi()
 symengine_swift_basic_ref symengine_swift_pow(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_sub(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_two()
 symengine_swift_basic_ref symengine_swift_zero()
 # Public Swift API declarations
 public struct SymEngineError: Error, CustomStringConvertible, Equatable {
@@ -42,11 +53,22 @@ public static var version: String {
 public static func symbol(_ name: String) throws -> Symbol {
 public static func integer(_ value: Int64) throws -> Integer {
 public static func add(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func catalan() throws -> Basic {
+public static func complexInf() throws -> Basic {
 public static func divide(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func e() throws -> Basic {
+public static func eulerGamma() throws -> Basic {
+public static func goldenRatio() throws -> Basic {
+public static func i() throws -> Basic {
+public static func inf() throws -> Basic {
+public static func minusOne() throws -> Basic {
 public static func multiply(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func nan() throws -> Basic {
 public static func negate(_ a: Basic) throws -> Basic {
+public static func negInf() throws -> Basic {
 public static func one() throws -> Integer {
 public static func pi() throws -> Basic {
 public static func power(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func subtract(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func two() throws -> Basic {
 public static func zero() throws -> Integer {

@@ -45,6 +45,49 @@ cases:
       x: {symbol: x}
     call: {function: sin, arguments: [x]}
     expect: {string: "sin(x)"}
+
+  # Mixed symbol/integer arithmetic.  These replace the per-wrapper hand-written
+  # "phase0" smoke assertions, which were the same expectations copied five
+  # times; each wrapper's remaining smoke test only bootstraps what the shared
+  # schema cannot express (module load, factories, equality, ownership).
+  - id: add_symbol_integer
+    arrange:
+      x: {symbol: phase0_x}
+      y: {integer: 2}
+    call: {function: add, arguments: [x, y]}
+    expect: {string: "2 + phase0_x"}
+  - id: sub_symbol_integer
+    arrange:
+      x: {symbol: phase0_x}
+      y: {integer: 2}
+    call: {function: sub, arguments: [x, y]}
+    expect: {string: "-2 + phase0_x"}
+  - id: mul_symbol_integer
+    arrange:
+      x: {symbol: phase0_x}
+      y: {integer: 2}
+    call: {function: mul, arguments: [x, y]}
+    expect: {string: "2*phase0_x"}
+  - id: div_symbol_integer
+    arrange:
+      x: {symbol: phase0_x}
+      y: {integer: 2}
+    call: {function: div, arguments: [x, y]}
+    expect: {string: "(1/2)*phase0_x"}
+  - id: pow_symbol_integer
+    arrange:
+      x: {symbol: phase0_x}
+      y: {integer: 2}
+    call: {function: pow, arguments: [x, y]}
+    expect: {string: "phase0_x**2"}
+  - id: neg_symbol
+    arrange:
+      x: {symbol: phase0_x}
+    call: {function: neg, arguments: [x]}
+    expect: {string: "-phase0_x"}
+
+  # Singleton constants; one case per shared spec entry so every wrapper proves
+  # its generated accessor is registered and returns the expected object.
   - id: zero_constant
     arrange: {}
     call: {function: zero, arguments: []}
@@ -57,3 +100,47 @@ cases:
     arrange: {}
     call: {function: pi, arguments: []}
     expect: {string: "pi"}
+  - id: minus_one_constant
+    arrange: {}
+    call: {function: minus_one, arguments: []}
+    expect: {string: "-1"}
+  - id: two_constant
+    arrange: {}
+    call: {function: two, arguments: []}
+    expect: {string: "2"}
+  - id: i_constant
+    arrange: {}
+    call: {function: i, arguments: []}
+    expect: {string: "I"}
+  - id: e_constant
+    arrange: {}
+    call: {function: e, arguments: []}
+    expect: {string: "E"}
+  - id: euler_gamma_constant
+    arrange: {}
+    call: {function: euler_gamma, arguments: []}
+    expect: {string: "EulerGamma"}
+  - id: catalan_constant
+    arrange: {}
+    call: {function: catalan, arguments: []}
+    expect: {string: "Catalan"}
+  - id: golden_ratio_constant
+    arrange: {}
+    call: {function: golden_ratio, arguments: []}
+    expect: {string: "GoldenRatio"}
+  - id: inf_constant
+    arrange: {}
+    call: {function: inf, arguments: []}
+    expect: {string: "oo"}
+  - id: neg_inf_constant
+    arrange: {}
+    call: {function: neg_inf, arguments: []}
+    expect: {string: "-oo"}
+  - id: complex_inf_constant
+    arrange: {}
+    call: {function: complex_inf, arguments: []}
+    expect: {string: "zoo"}
+  - id: nan_constant
+    arrange: {}
+    call: {function: nan, arguments: []}
+    expect: {string: "nan"}

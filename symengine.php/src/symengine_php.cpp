@@ -376,9 +376,6 @@ PHP_MINFO_FUNCTION(symengine)
     php_info_print_table_end();
 }
 
-ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_symengine_void_basic, 0, 0, SymEngine\\Basic, 0)
-ZEND_END_ARG_INFO()
-
 ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_symengine_integer_ctor, 0, 1, SymEngine\\Integer, 0)
     ZEND_ARG_TYPE_INFO(0, val, IS_LONG, 0)
 ZEND_END_ARG_INFO()
@@ -409,72 +406,6 @@ ZEND_END_ARG_INFO()
 // this include into $abs_builddir/generated and adds that directory to
 // INCLUDES; nothing generated is ever written into the tracked source tree.
 #include "symengine_php_generated.inc"
-
-PHP_FUNCTION(symengine_minus_one)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::minus_one);
-}
-
-PHP_FUNCTION(symengine_two)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::two);
-}
-
-PHP_FUNCTION(symengine_i)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::I);
-}
-
-PHP_FUNCTION(symengine_e)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::E);
-}
-
-PHP_FUNCTION(symengine_euler_gamma)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::EulerGamma);
-}
-
-PHP_FUNCTION(symengine_catalan)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::Catalan);
-}
-
-PHP_FUNCTION(symengine_golden_ratio)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::GoldenRatio);
-}
-
-PHP_FUNCTION(symengine_inf)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::Inf);
-}
-
-PHP_FUNCTION(symengine_neg_inf)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::NegInf);
-}
-
-PHP_FUNCTION(symengine_complex_inf)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::ComplexInf);
-}
-
-PHP_FUNCTION(symengine_nan)
-{
-    ZEND_PARSE_PARAMETERS_NONE();
-    symengine_wrap_basic(return_value, SymEngine::Nan);
-}
 
 PHP_FUNCTION(symengine_integer)
 {
@@ -551,17 +482,6 @@ PHP_FUNCTION(symengine_eq)
 
 static const zend_function_entry symengine_functions[] = {
     #include "symengine_php_generated_functions.inc"
-    PHP_FE(symengine_minus_one, arginfo_symengine_void_basic)
-    PHP_FE(symengine_two, arginfo_symengine_void_basic)
-    PHP_FE(symengine_i, arginfo_symengine_void_basic)
-    PHP_FE(symengine_e, arginfo_symengine_void_basic)
-    PHP_FE(symengine_euler_gamma, arginfo_symengine_void_basic)
-    PHP_FE(symengine_catalan, arginfo_symengine_void_basic)
-    PHP_FE(symengine_golden_ratio, arginfo_symengine_void_basic)
-    PHP_FE(symengine_inf, arginfo_symengine_void_basic)
-    PHP_FE(symengine_neg_inf, arginfo_symengine_void_basic)
-    PHP_FE(symengine_complex_inf, arginfo_symengine_void_basic)
-    PHP_FE(symengine_nan, arginfo_symengine_void_basic)
     PHP_FE(symengine_integer, arginfo_symengine_integer_ctor)
     PHP_FE(symengine_symbol, arginfo_symengine_symbol_ctor)
     PHP_FE(symengine_str, arginfo_symengine_str)

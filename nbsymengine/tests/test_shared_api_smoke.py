@@ -1,22 +1,20 @@
-"""Phase 0 behavior baseline for the common nbsymengine surface."""
+"""Bootstrap baseline for nbsymengine.
+
+The arithmetic, constant and string expectations that used to be repeated here
+now live in ``binding-spec/test-cases.yaml`` and are rendered into
+``test_shared_cases.py`` for every wrapper.  What remains is what that shared
+schema cannot express: the module imports, the hand-written factory functions
+work, and structural (in)equality holds.
+"""
 
 import nbsymengine as se
 
 
-def test_shared_api_smoke() -> None:
+def test_manual_factories_and_equality() -> None:
     x = se.symbol("phase0_x")
     two = se.integer(2)
 
     assert str(x) == "phase0_x"
     assert str(two) == "2"
-    assert str(se.zero()) == "0"
-    assert str(se.one()) == "1"
-    assert str(se.pi()) == "pi"
-    assert str(se.add(x, two)) == "2 + phase0_x"
-    assert str(se.sub(x, two)) == "-2 + phase0_x"
-    assert str(se.mul(x, two)) == "2*phase0_x"
-    assert str(se.div(x, two)) == "(1/2)*phase0_x"
-    assert str(se.pow(x, two)) == "phase0_x**2"
-    assert str(se.neg(x)) == "-phase0_x"
     assert x == se.symbol("phase0_x")
     assert x != se.symbol("phase0_y")

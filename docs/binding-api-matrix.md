@@ -22,7 +22,9 @@
 | `atanh` | generated | — | — | — | — |
 | `beta` | generated | — | — | — | — |
 | `carmichael` | generated | — | — | — | — |
+| `catalan` | — | generated | generated | generated | generated |
 | `ceiling` | generated | — | — | — | — |
+| `complex_inf` | generated | generated | generated | generated | generated |
 | `conjugate` | generated | — | — | — | — |
 | `cos` | generated | — | — | — | — |
 | `cosh` | generated | — | — | — | — |
@@ -33,9 +35,11 @@
 | `digamma` | generated | — | — | — | — |
 | `dirichlet_eta` | generated | — | — | — | — |
 | `div` | generated | generated | generated | generated | generated |
+| `e` | generated | generated | generated | generated | generated |
 | `eq` | generated | — | — | — | — |
 | `erf` | generated | — | — | — | — |
 | `erfc` | generated | — | — | — | — |
+| `euler_gamma` | generated | generated | generated | generated | generated |
 | `factor` | generated | — | — | — | — |
 | `factor_lehman_method` | generated | — | — | — | — |
 | `factor_pollard_pm1_method` | generated | — | — | — | — |
@@ -45,7 +49,10 @@
 | `gamma` | generated | — | — | — | — |
 | `gcd` | generated | — | — | — | — |
 | `ge` | generated | — | — | — | — |
+| `golden_ratio` | — | generated | generated | generated | generated |
 | `gt` | generated | — | — | — | — |
+| `i` | generated | generated | generated | generated | generated |
+| `inf` | generated | generated | generated | generated | generated |
 | `lambertw` | generated | — | — | — | — |
 | `lcm` | generated | — | — | — | — |
 | `le` | generated | — | — | — | — |
@@ -53,11 +60,14 @@
 | `loggamma` | generated | — | — | — | — |
 | `lowergamma` | generated | — | — | — | — |
 | `lt` | generated | — | — | — | — |
+| `minus_one` | — | generated | generated | generated | generated |
 | `mod_inverse` | generated | — | — | — | — |
 | `mul` | generated | generated | generated | generated | generated |
 | `multiplicative_order` | generated | — | — | — | — |
+| `nan` | generated | generated | generated | generated | generated |
 | `ne` | generated | — | — | — | — |
 | `neg` | generated | generated | generated | generated | generated |
+| `neg_inf` | — | generated | generated | generated | generated |
 | `nextprime` | generated | — | — | — | — |
 | `nthroot_mod` | generated | — | — | — | — |
 | `nthroot_mod_list` | generated | — | — | — | — |
@@ -81,6 +91,7 @@
 | `tanh` | generated | — | — | — | — |
 | `totient` | generated | — | — | — | — |
 | `trigamma` | generated | — | — | — | — |
+| `two` | — | generated | generated | generated | generated |
 | `uppergamma` | generated | — | — | — | — |
 | `zero` | generated | generated | generated | generated | generated |
 | `zeta` | generated | — | — | — | — |

@@ -9,12 +9,23 @@ _stringify(self) -> SV *
 _equals(self, other) -> bool
 DESTROY(self) -> void
 add(a, b) -> SV *
+catalan() -> SV *
+complex_inf() -> SV *
 div(a, b) -> SV *
+e() -> SV *
+euler_gamma() -> SV *
+golden_ratio() -> SV *
+i() -> SV *
+inf() -> SV *
+minus_one() -> SV *
 mul(a, b) -> SV *
+nan() -> SV *
 neg(a) -> SV *
+neg_inf() -> SV *
 one() -> SV *
 pi() -> SV *
 pow(a, b) -> SV *
 sin(a) -> SV *
 sub(a, b) -> SV *
+two() -> SV *
 zero() -> SV *

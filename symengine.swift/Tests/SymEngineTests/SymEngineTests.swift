@@ -2,35 +2,18 @@ import XCTest
 @testable import SymEngine
 
 final class SymEngineTests: XCTestCase {
-    func testSharedAPISmoke() throws {
+    // The arithmetic, constant and string expectations that used to be
+    // repeated here (testSharedAPISmoke/testBasicOperations) now live in
+    // binding-spec/test-cases.yaml and are rendered into SharedCasesTests.
+    // What remains is what that shared schema cannot express: the
+    // hand-written factories (structural comparison stays in
+    // testMathematicalEquality below).
+    func testManualFactories() throws {
         let x = try SymEngine.symbol("phase0_x")
         let two = try SymEngine.integer(2)
 
         XCTAssertEqual(try x.string(), "phase0_x")
         XCTAssertEqual(try two.string(), "2")
-        XCTAssertEqual(try SymEngine.zero().string(), "0")
-        XCTAssertEqual(try SymEngine.one().string(), "1")
-        XCTAssertEqual(try SymEngine.pi().string(), "pi")
-        XCTAssertEqual(try SymEngine.add(x, two).string(), "2 + phase0_x")
-        XCTAssertEqual(try SymEngine.subtract(x, two).string(), "-2 + phase0_x")
-        XCTAssertEqual(try SymEngine.multiply(x, two).string(), "2*phase0_x")
-        XCTAssertEqual(try SymEngine.divide(x, two).string(), "(1/2)*phase0_x")
-        XCTAssertEqual(try SymEngine.power(x, two).string(), "phase0_x**2")
-        XCTAssertEqual(try SymEngine.negate(x).string(), "-phase0_x")
-        XCTAssertTrue(try x.isEqual(to: SymEngine.symbol("phase0_x")))
-        XCTAssertFalse(try x.isEqual(to: SymEngine.symbol("phase0_y")))
-    }
-
-    func testBasicOperations() throws {
-        let x = try SymEngine.symbol("x")
-        let two = try SymEngine.integer(2)
-
-        XCTAssertEqual(try SymEngine.add(x, two).string(), "2 + x")
-        XCTAssertEqual(try SymEngine.subtract(x, two).string(), "-2 + x")
-        XCTAssertEqual(try SymEngine.multiply(x, two).string(), "2*x")
-        XCTAssertEqual(try SymEngine.divide(x, two).string(), "(1/2)*x")
-        XCTAssertEqual(try SymEngine.power(x, two).string(), "x**2")
-        XCTAssertEqual(try SymEngine.negate(x).string(), "-x")
     }
 
     func testDynamicWrapperTypesAndExternalOwnership() throws {

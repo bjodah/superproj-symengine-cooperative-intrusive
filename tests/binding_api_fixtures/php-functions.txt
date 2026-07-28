@@ -1,18 +1,7 @@
 # PHP_FUNCTION declarations
 symengine_zero
 symengine_one
-symengine_minus_one
-symengine_two
-symengine_i
-symengine_e
 symengine_pi
-symengine_euler_gamma
-symengine_catalan
-symengine_golden_ratio
-symengine_inf
-symengine_neg_inf
-symengine_complex_inf
-symengine_nan
 symengine_integer
 symengine_symbol
 symengine_add
@@ -24,27 +13,27 @@ symengine_pow
 symengine_str
 symengine_eq
 # PHP function table / arginfo
-symengine_minus_one -> arginfo_symengine_void_basic
-symengine_two -> arginfo_symengine_void_basic
-symengine_i -> arginfo_symengine_void_basic
-symengine_e -> arginfo_symengine_void_basic
-symengine_euler_gamma -> arginfo_symengine_void_basic
-symengine_catalan -> arginfo_symengine_void_basic
-symengine_golden_ratio -> arginfo_symengine_void_basic
-symengine_inf -> arginfo_symengine_void_basic
-symengine_neg_inf -> arginfo_symengine_void_basic
-symengine_complex_inf -> arginfo_symengine_void_basic
-symengine_nan -> arginfo_symengine_void_basic
 symengine_integer -> arginfo_symengine_integer_ctor
 symengine_symbol -> arginfo_symengine_symbol_ctor
 symengine_str -> arginfo_symengine_str
 symengine_eq -> arginfo_symengine_eq
 symengine_add -> arginfo_symengine_add
+symengine_catalan -> arginfo_symengine_catalan
+symengine_complex_inf -> arginfo_symengine_complex_inf
 symengine_div -> arginfo_symengine_div
+symengine_e -> arginfo_symengine_e
+symengine_euler_gamma -> arginfo_symengine_euler_gamma
+symengine_golden_ratio -> arginfo_symengine_golden_ratio
+symengine_i -> arginfo_symengine_i
+symengine_inf -> arginfo_symengine_inf
+symengine_minus_one -> arginfo_symengine_minus_one
 symengine_mul -> arginfo_symengine_mul
+symengine_nan -> arginfo_symengine_nan
 symengine_neg -> arginfo_symengine_neg
+symengine_neg_inf -> arginfo_symengine_neg_inf
 symengine_one -> arginfo_symengine_one
 symengine_pi -> arginfo_symengine_pi
 symengine_pow -> arginfo_symengine_pow
 symengine_sub -> arginfo_symengine_sub
+symengine_two -> arginfo_symengine_two
 symengine_zero -> arginfo_symengine_zero

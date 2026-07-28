@@ -41,7 +41,7 @@ def _cpp_type(type_id: str) -> str:
 def _python_type(type_id: str) -> str:
     return {
         "basic": "Basic", "boolean": "Boolean", "integer": "Integer",
-        "number": "Basic", "double": "float", "unsigned": "int",
+        "number": "Number", "double": "float", "unsigned": "int",
     }[type_id]
 
 

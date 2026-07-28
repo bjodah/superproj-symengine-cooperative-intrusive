@@ -1,3 +1,10 @@
+# Bootstrap baseline for SymEngine.pm.
+#
+# The arithmetic, constant and string expectations that used to be repeated
+# here now live in binding-spec/test-cases.yaml and are rendered into the
+# generated shared_cases.t.  What remains is what that shared schema cannot
+# express: the module loads, the hand-written factory XSUBs work, and the
+# overloaded structural comparison holds.
 use strict;
 use warnings;
 use Test::More;
@@ -9,15 +16,6 @@ my $two = SymEngine::integer(2);
 
 is("$x", 'phase0_x', 'symbol');
 is("$two", '2', 'integer');
-is('' . SymEngine::zero(), '0', 'zero');
-is('' . SymEngine::one(), '1', 'one');
-is('' . SymEngine::pi(), 'pi', 'pi');
-is('' . SymEngine::add($x, $two), '2 + phase0_x', 'add');
-is('' . SymEngine::sub($x, $two), '-2 + phase0_x', 'sub');
-is('' . SymEngine::mul($x, $two), '2*phase0_x', 'mul');
-is('' . SymEngine::div($x, $two), '(1/2)*phase0_x', 'div');
-is('' . SymEngine::pow($x, $two), 'phase0_x**2', 'pow');
-is('' . SymEngine::neg($x), '-phase0_x', 'neg');
 ok($x == SymEngine::symbol('phase0_x'), 'structural equality');
 ok(!($x == SymEngine::symbol('phase0_y')), 'structural inequality');
 

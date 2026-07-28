@@ -16,30 +16,18 @@ public final class SmokeTest {
     }
 
     public static void main(String[] arguments) throws Exception {
+        // Arithmetic, constant and string expectations live in
+        // binding-spec/test-cases.yaml and run from the generated
+        // SharedCasesTest.  What remains here is what that shared schema
+        // cannot express: the hand-written factories, structural
+        // equals/hashCode, and the Java-only handle lifecycle.
         try (Basic x = SymEngine.symbol("x");
              Basic two = SymEngine.integer(2);
-             Basic three = SymEngine.integer(3);
-             Basic five = SymEngine.add(two, three);
              Basic product = SymEngine.mul(two, x);
-             Basic zero = SymEngine.zero();
-             Basic one = SymEngine.one();
-             Basic pi = SymEngine.pi();
-             Basic difference = SymEngine.sub(three, two);
-             Basic quotient = SymEngine.div(three, two);
-             Basic power = SymEngine.pow(two, three);
-             Basic negative = SymEngine.neg(two);
-             Basic sine = SymEngine.sin(x);
              Basic equalProduct = SymEngine.mul(two, x);
              Basic hashedProduct = SymEngine.mul(two, x)) {
-            assert zero.toString().equals("0");
-            assert one.toString().equals("1");
-            assert pi.toString().equals("pi");
-            assert five.toString().equals("5");
-            assert difference.toString().equals("1");
-            assert quotient.toString().equals("3/2");
-            assert power.toString().equals("8");
-            assert negative.toString().equals("-2");
-            assert sine.toString().equals("sin(x)");
+            assert x.toString().equals("x");
+            assert two.toString().equals("2");
             assert product.equals(equalProduct);
             assert product.hashCode() == hashedProduct.hashCode();
         }

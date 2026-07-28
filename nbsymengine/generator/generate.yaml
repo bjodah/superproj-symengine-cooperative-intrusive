@@ -66,7 +66,8 @@ modules:
       - Unequality
       - LessThan
       - StrictLessThan
-      # Infrastructure from api_inventory.yaml excluded_infrastructure
+      # Infrastructure classes that are not part of the thin binding's surface
+      # (see scripts/extract_inventory.py for the legacy-wrapper inventory)
       - SympifyError
       - Singleton
       - DictBasic

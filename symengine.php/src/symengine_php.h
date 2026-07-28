@@ -68,18 +68,7 @@ PHP_MINFO_FUNCTION(symengine);
 
 PHP_FUNCTION(symengine_zero);
 PHP_FUNCTION(symengine_one);
-PHP_FUNCTION(symengine_minus_one);
-PHP_FUNCTION(symengine_two);
-PHP_FUNCTION(symengine_i);
-PHP_FUNCTION(symengine_e);
 PHP_FUNCTION(symengine_pi);
-PHP_FUNCTION(symengine_euler_gamma);
-PHP_FUNCTION(symengine_catalan);
-PHP_FUNCTION(symengine_golden_ratio);
-PHP_FUNCTION(symengine_inf);
-PHP_FUNCTION(symengine_neg_inf);
-PHP_FUNCTION(symengine_complex_inf);
-PHP_FUNCTION(symengine_nan);
 PHP_FUNCTION(symengine_integer);
 PHP_FUNCTION(symengine_symbol);
 PHP_FUNCTION(symengine_add);

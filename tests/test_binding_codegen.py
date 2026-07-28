@@ -87,7 +87,7 @@ def assert_invalid_cases(tmp_path: Path, document: dict, message: str) -> None:
 
 def test_committed_spec_validates_and_resolves_documented_names() -> None:
     spec = validate_spec(API_PATH)
-    assert len(spec.functions) == 79
+    assert len(spec.functions) == 90
     sub = next(function for function in spec.functions if function.id == "sub")
     assert sub.public_name("php") == "symengine_sub"
     assert sub.public_name("swift") == "subtract"
@@ -316,12 +316,17 @@ def test_check_command_end_to_end(capsys: pytest.CaptureFixture[str]) -> None:
 def test_committed_test_cases_validate_against_the_spec() -> None:
     spec = validate_spec(API_PATH)
     suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
-    assert len(suite.cases) == 10
+    assert len(suite.cases) == 27
     ids = {case.id for case in suite.cases}
     assert ids == {
         "add_integers", "sub_integers", "mul_integers", "div_integers",
         "pow_integers", "neg_integer", "sin_symbol",
-        "zero_constant", "one_constant", "pi_constant",
+        "add_symbol_integer", "sub_symbol_integer", "mul_symbol_integer",
+        "div_symbol_integer", "pow_symbol_integer", "neg_symbol",
+        "zero_constant", "one_constant", "pi_constant", "minus_one_constant",
+        "two_constant", "i_constant", "e_constant", "euler_gamma_constant",
+        "catalan_constant", "golden_ratio_constant", "inf_constant",
+        "neg_inf_constant", "complex_inf_constant", "nan_constant",
     }
 
 
@@ -420,16 +425,29 @@ def test_swift_and_php_renderers_skip_functions_not_exposed_with_a_named_reason(
     assert "not exposed to php" in php_output
 
 
-def test_java_and_perl_and_python_renderers_include_every_case() -> None:
+def test_java_and_perl_renderers_include_every_case() -> None:
     spec = validate_spec(API_PATH)
     suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
     for renderer, needle in (
         (render_java_tests, "sin"),
         (render_perl_tests, "sin_symbol"),
-        (render_python_tests, "test_sin_symbol"),
     ):
         assert "SKIPPED" not in renderer(spec, suite)
         assert needle in renderer(spec, suite)
+
+
+def test_python_renderer_skips_only_the_constants_it_does_not_expose() -> None:
+    """Python is the one language exposing `sin` but not every singleton."""
+    spec = validate_spec(API_PATH)
+    suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
+    rendered = render_python_tests(spec, suite)
+    assert "def test_sin_symbol" in rendered
+    skipped = set(re.findall(r"# SKIPPED case '(\w+)'", rendered))
+    assert skipped == {
+        "catalan_constant", "golden_ratio_constant", "minus_one_constant",
+        "neg_inf_constant", "two_constant",
+    }
+    assert "is not exposed to python" in rendered
 
 
 def test_generate_writes_a_test_file_for_every_language(tmp_path: Path) -> None:

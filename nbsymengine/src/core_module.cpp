@@ -1478,19 +1478,15 @@ NB_MODULE(_core, m) {
           },
           nb::arg("objects"), nb::arg("thread_count") = 4);
 
-    // Constants — return the genuine C++ static singletons.
-    m.def("e",    []() -> RCP<const Basic> { return SymEngine::E;    });
-    m.def("euler_gamma", []() -> RCP<const Basic> {
-        return SymEngine::EulerGamma;
-    });
-    m.def("I", []() -> RCP<const Basic> { return SymEngine::I; });
-    m.def("oo", []() -> RCP<const Number> { return SymEngine::Inf; });
+    // Constants — return the genuine C++ static singletons.  e/euler_gamma/
+    // I/oo/zoo/nan_const now come from binding-spec/api.yaml via
+    // symengine_simple_funcs.inc (included above); only the boolean atoms,
+    // whose RCP<const Boolean> result has no shared adapter family yet, stay
+    // hand-bound here.
     m.def("cast_to_number", [](const RCP<const Basic> &x) -> RCP<const Number> {
         if (is_a_Number(*x)) return rcp_static_cast<const Number>(x);
         throw std::runtime_error("Not a Number");
     }, nb::arg("x"));
-    m.def("zoo", []() -> RCP<const Number> { return SymEngine::ComplexInf; });
-    m.def("nan_const", []() -> RCP<const Number> { return SymEngine::Nan; });
     m.def("true_const", []() -> RCP<const Boolean> { return SymEngine::boolTrue; });
     m.def("false_const", []() -> RCP<const Boolean> { return SymEngine::boolFalse; });
 

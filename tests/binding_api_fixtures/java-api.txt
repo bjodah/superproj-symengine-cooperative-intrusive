@@ -1,15 +1,26 @@
 # Generated SymEngine.java public methods
 add
+catalan
+complexInf
 div
+e
+eulerGamma
+goldenRatio
+i
+inf
 integer
+minusOne
 mul
+nan
 neg
+negInf
 one
 pi
 pow
 sin
 sub
 symbol
+two
 zero
 # Manual Basic.java public methods
 close

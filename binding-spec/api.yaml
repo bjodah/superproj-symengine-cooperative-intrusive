@@ -101,6 +101,35 @@ functions:
     expose: [python, perl, php, swift, java]
     implementation: generated
 
+  # Singleton constants beyond zero/one/pi.  Every wrapper renders these from
+  # the same entries; the Python overrides preserve the names nbsymengine has
+  # always exposed (``I``/``oo``/``zoo``/``nan_const``) and the PHP defaults
+  # reproduce the extension's existing ``symengine_*`` spellings.
+  #
+  # ``catalan``, ``golden_ratio``, ``minus_one``, ``neg_inf`` and ``two`` are
+  # deliberately not exposed to python: nbsymengine never bound them, and
+  # nbsymengine_compat re-exports every new ``_core`` name into the frozen
+  # legacy ``symengine`` surface.  Adding them there is a downstream API
+  # decision, not a side effect of consolidating the shared spec.
+  - &singleton
+    id: e
+    cpp: {expression: SymEngine::E, header: symengine/constants.h}
+    arguments: []
+    returns: basic
+    behavior: singleton
+    expose: [python, perl, php, swift, java]
+    implementation: generated
+  - {<<: *singleton, id: euler_gamma, cpp: {expression: SymEngine::EulerGamma, header: symengine/constants.h}}
+  - {<<: *singleton, id: i, cpp: {expression: SymEngine::I, header: symengine/constants.h}, names: {python: I}}
+  - {<<: *singleton, id: inf, cpp: {expression: SymEngine::Inf, header: symengine/constants.h}, returns: number, names: {python: oo}}
+  - {<<: *singleton, id: complex_inf, cpp: {expression: SymEngine::ComplexInf, header: symengine/constants.h}, returns: number, names: {python: zoo}}
+  - {<<: *singleton, id: nan, cpp: {expression: SymEngine::Nan, header: symengine/constants.h}, returns: number, names: {python: nan_const}}
+  - {<<: *singleton, id: catalan, cpp: {expression: SymEngine::Catalan, header: symengine/constants.h}, expose: [perl, php, swift, java]}
+  - {<<: *singleton, id: golden_ratio, cpp: {expression: SymEngine::GoldenRatio, header: symengine/constants.h}, expose: [perl, php, swift, java]}
+  - {<<: *singleton, id: minus_one, cpp: {expression: SymEngine::minus_one, header: symengine/constants.h}, expose: [perl, php, swift, java]}
+  - {<<: *singleton, id: neg_inf, cpp: {expression: SymEngine::NegInf, header: symengine/constants.h}, returns: number, expose: [perl, php, swift, java]}
+  - {<<: *singleton, id: two, cpp: {expression: SymEngine::two, header: symengine/constants.h}, expose: [perl, php, swift, java]}
+
   # Merge templates keep the shared spec declarative without re-stating a
   # C++ API for each mechanical adapter-family entry.
   - &python_binary

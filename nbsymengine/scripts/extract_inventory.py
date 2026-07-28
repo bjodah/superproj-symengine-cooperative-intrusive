@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
-"""Extract API inventory from the legacy Cython wrapper.
+"""Extract an API inventory from the legacy Cython wrapper.
 
-Parses symengine_wrapper.in.pyx and emits api_inventory.yaml with three lists:
+A developer-only reporting tool.  Nothing in the build consumes its output:
+``nbsymengine``'s exposed C++ API is defined by ``generator/generate.yaml`` and
+``binding-spec/api.yaml``, never by the legacy inventory.  The inventory is
+still useful when measuring how much of legacy ``symengine.py`` the
+``nbsymengine_compat`` shim covers, so it is printed on demand rather than
+committed as a snapshot that silently goes stale.
+
+Parses symengine_wrapper.in.pyx and emits YAML with three lists:
   - classes_initial: Python-visible classes worth binding
   - functions_initial: module-level functions
   - excluded_infrastructure: rcp_static_cast_*, make_rcp_*, outArg, c2py, etc.
 
-Usage:
-    python extract_inventory.py [WRAPPER_PATH] [-o OUTPUT]
+Usage (writes to stdout unless -o is given):
+    python scripts/extract_inventory.py [WRAPPER_PATH] [-o OUTPUT]
 """
 from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
 INFRASTRUCTURE_PATTERNS = [
@@ -79,9 +87,9 @@ def extract_inventory(wrapper_path: str) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
+    # scripts/ -> nbsymengine/ -> superproject root, which owns symengine.py.
     default_wrapper = str(
-        Path(__file__).resolve().parents[3]
-        / ".."
+        Path(__file__).resolve().parents[2]
         / "symengine.py"
         / "symengine"
         / "lib"
@@ -96,9 +104,8 @@ def main() -> None:
     ap.add_argument(
         "-o",
         "--output",
-        default=str(
-            Path(__file__).resolve().parents[1] / "api_inventory.yaml"
-        ),
+        default="-",
+        help="YAML destination; '-' (the default) writes to stdout",
     )
     args = ap.parse_args()
 
@@ -106,14 +113,17 @@ def main() -> None:
 
     import yaml
 
-    with open(args.output, "w") as f:
-        yaml.dump(inventory, f, default_flow_style=False, sort_keys=False)
-
-    print(f"Wrote {args.output}")
+    document = yaml.dump(inventory, default_flow_style=False, sort_keys=False)
+    if args.output == "-":
+        sys.stdout.write(document)
+    else:
+        Path(args.output).write_text(document, encoding="utf-8")
+        print(f"Wrote {args.output}")
     print(
-        f"  classes: {len(inventory['classes_initial'])}, "
+        f"classes: {len(inventory['classes_initial'])}, "
         f"functions: {len(inventory['functions_initial'])}, "
-        f"excluded: {len(inventory['excluded_infrastructure'])}"
+        f"excluded: {len(inventory['excluded_infrastructure'])}",
+        file=sys.stderr,
     )
 
 
