@@ -137,6 +137,7 @@ if (SYMENGINE_NANOBIND_IN_TREE AND (SYMENGINE_NB_FORCE_REGENERATE OR NOT EXISTS 
             ${CMAKE_SOURCE_DIR}/binding-spec/schema.json
             ${CMAKE_SOURCE_DIR}/tools/binding_codegen/model.py
             ${CMAKE_SOURCE_DIR}/tools/binding_codegen/inspect_cpp.py
+            ${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_common.py
             ${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_nbsymengine.py
             ${CMAKE_SOURCE_DIR}/tools/binding_codegen/__main__.py
         COMMENT "Generating shared-spec Python adapter bindings"

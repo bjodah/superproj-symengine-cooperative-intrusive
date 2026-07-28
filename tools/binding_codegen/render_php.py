@@ -3,24 +3,15 @@
 from __future__ import annotations
 
 from .model import BindingSpec, Function
-from .render_nbsymengine import _header
+from .render_common import functions_for_language, header
 
 
-_SUPPORTED = frozenset(("singleton", "unary_basic", "binary_basic"))
+SUPPORTED_FAMILIES = frozenset(("singleton", "unary_basic", "binary_basic"))
 
 
 def php_functions(spec: BindingSpec) -> tuple[Function, ...]:
-    result = []
-    for function in spec.functions:
-        if "php" not in function.expose or function.implementation != "generated":
-            continue
-        if function.behavior not in _SUPPORTED:
-            raise ValueError(
-                f"entry '{function.id}': PHP renderer does not support "
-                f"{function.behavior!r}"
-            )
-        result.append(function)
-    return tuple(sorted(result, key=lambda function: function.id))
+    """Return generated PHP entries in a stable order or name the gap."""
+    return functions_for_language(spec, "php", SUPPORTED_FAMILIES)
 
 
 def _arginfo_name(function: Function) -> str:
@@ -29,7 +20,7 @@ def _arginfo_name(function: Function) -> str:
 
 def render_php_inc(spec: BindingSpec) -> str:
     """Render arginfo plus handlers; Zend ownership remains in runtime helpers."""
-    lines = _header(spec, "//")
+    lines = header(spec, "//")
     lines.append("// Included by symengine_php.cpp.")
     for function in php_functions(spec):
         name = function.public_name("php")
@@ -86,7 +77,7 @@ def render_php_inc(spec: BindingSpec) -> str:
 
 
 def render_php_function_table_inc(spec: BindingSpec) -> str:
-    lines = _header(spec, "//")
+    lines = header(spec, "//")
     lines.append("// Included in symengine_functions.")
     lines.extend(
         f"    PHP_FE({function.public_name('php')}, {_arginfo_name(function)})"
@@ -97,7 +88,7 @@ def render_php_function_table_inc(spec: BindingSpec) -> str:
 
 def render_php_stub(spec: BindingSpec) -> str:
     """Render an IDE-visible declaration source from the same signatures."""
-    lines = _header(spec, "//")
+    lines = header(spec, "//")
     lines.extend(["<?php", "", "// Generated declaration source; runtime arginfo is emitted in C++."])
     for function in php_functions(spec):
         parameters = ", ".join(

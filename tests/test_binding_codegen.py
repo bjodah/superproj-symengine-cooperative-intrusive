@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import dataclasses
 from pathlib import Path
 import re
 
@@ -29,9 +30,16 @@ from tools.binding_codegen.render_tests import (
     render_python_tests,
     render_swift_tests,
 )
-from tools.binding_codegen.test_cases import validate_test_cases
+from tools.binding_codegen.test_cases import ArrangeValue, validate_test_cases
 from tools import check_binding_api_fixtures as fixture_check
 from tools.binding_codegen import __main__ as codegen_main
+from tools.binding_codegen import render_common, render_tests
+from tools.binding_codegen.model import BindingSpec
+from tools.binding_codegen.render_java import SUPPORTED_FAMILIES as JAVA_FAMILIES, java_functions
+from tools.binding_codegen.render_nbsymengine import python_functions
+from tools.binding_codegen.render_perl import SUPPORTED_FAMILIES as PERL_FAMILIES, perl_functions
+from tools.binding_codegen.render_php import SUPPORTED_FAMILIES as PHP_FAMILIES, php_functions
+from tools.binding_codegen.render_swift import SUPPORTED_FAMILIES as SWIFT_FAMILIES, swift_functions
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -449,3 +457,98 @@ def test_check_command_validates_test_cases(capsys: pytest.CaptureFixture[str]) 
     assert codegen_main.main(["check"]) == 0
     output = capsys.readouterr()
     assert "shared behavioral test cases" in output.out
+
+
+# --- Shared renderer helpers ------------------------------------------------
+
+
+def test_functions_for_language_backs_every_per_language_selection() -> None:
+    spec = validate_spec(API_PATH)
+    for language, families, selector in (
+        ("python", None, python_functions),
+        ("perl", PERL_FAMILIES, perl_functions),
+        ("php", PHP_FAMILIES, php_functions),
+        ("swift", SWIFT_FAMILIES, swift_functions),
+        ("java", JAVA_FAMILIES, java_functions),
+    ):
+        selected = render_common.functions_for_language(spec, language, families)
+        assert selected == selector(spec)
+        assert [function.id for function in selected] == sorted(function.id for function in selected)
+        assert all(language in function.expose and function.implementation == "generated"
+                   for function in selected)
+
+
+def test_functions_for_language_names_the_language_of_an_unsupported_behavior() -> None:
+    spec = validate_spec(API_PATH)
+    unsupported = dataclasses.replace(
+        next(function for function in spec.functions if function.id == "add"),
+        behavior="list_integer_to_basic",
+    )
+    mutated = dataclasses.replace(
+        spec,
+        functions=tuple(unsupported if function.id == "add" else function
+                        for function in spec.functions),
+    )
+    for language, families, label in (
+        ("perl", PERL_FAMILIES, "Perl"),
+        ("php", PHP_FAMILIES, "PHP"),
+        ("swift", SWIFT_FAMILIES, "Swift"),
+        ("java", JAVA_FAMILIES, "Java"),
+    ):
+        with pytest.raises(ValueError) as error:
+            render_common.functions_for_language(mutated, language, families)
+        assert str(error.value) == (
+            f"entry 'add': {label} renderer does not support 'list_integer_to_basic'"
+        )
+    # Without a supported set nothing is rejected; Python reports at render time.
+    assert unsupported in render_common.functions_for_language(mutated, "python")
+
+
+def test_header_banner_is_shared_and_comment_marker_aware() -> None:
+    spec = validate_spec(API_PATH)
+    lines = render_common.header(spec, "//")
+    assert lines == [
+        "// AUTO-GENERATED — DO NOT EDIT.",
+        f"// schema_version: {spec.schema_version}; spec_sha256: {render_common.spec_digest(spec)}; "
+        f"generator_version: {render_common.GENERATOR_VERSION}",
+    ]
+    assert render_common.header(spec, "#")[0] == "# AUTO-GENERATED — DO NOT EDIT."
+
+
+def test_spec_digest_is_cached_per_file_and_stays_whitespace_insensitive(tmp_path: Path) -> None:
+    path = tmp_path / "api.yaml"
+    path.write_text("schema_version: 1\nfunctions: []\n", encoding="utf-8")
+    spec = BindingSpec(schema_version=1, types={}, functions=(), source_path=path)
+
+    digest = render_common.spec_digest(spec)
+    assert any(key[0] == str(path) for key in render_common._DIGEST_CACHE)
+    assert render_common.spec_digest(spec) == digest
+
+    path.write_text("schema_version:    1\nfunctions:    []\n", encoding="utf-8")
+    assert render_common.spec_digest(spec) == digest
+
+    path.write_text("schema_version: 1\nfunctions: [{id: add}]\n", encoding="utf-8")
+    assert render_common.spec_digest(spec) != digest
+
+
+def test_language_profiles_spell_arrange_values_per_language() -> None:
+    integer = ArrangeValue(kind="integer", value=2)
+    symbol = ArrangeValue(kind="symbol", value="x")
+    for profile, expected_integer, expected_symbol in (
+        (render_tests.PYTHON, "sx.integer(2)", "sx.symbol('x')"),
+        (render_tests.PERL, "SymEngine::integer(2)", "SymEngine::symbol('x')"),
+        (render_tests.PHP, "symengine_integer(2)", "symengine_symbol('x')"),
+        (render_tests.SWIFT, "try SymEngine.integer(2)", 'try SymEngine.symbol("x")'),
+        (render_tests.JAVA, "SymEngine.integer(2)", 'SymEngine.symbol("x")'),
+    ):
+        assert profile.arrange(integer) == expected_integer
+        assert profile.arrange(symbol) == expected_symbol
+        with pytest.raises(ValueError, match="unsupported arrange kind"):
+            profile.arrange(ArrangeValue(kind="float", value=1.5))
+
+
+def test_language_profile_string_literals_escape_their_own_delimiters() -> None:
+    for profile in (render_tests.PERL, render_tests.PHP):
+        assert profile.string_literal("a'b\\c") == "'a\\'b\\\\c'"
+    for profile in (render_tests.SWIFT, render_tests.JAVA):
+        assert profile.string_literal('a"b\\c') == '"a\\"b\\\\c"'

@@ -3,24 +3,15 @@
 from __future__ import annotations
 
 from .model import BindingSpec, Function
-from .render_nbsymengine import _header
+from .render_common import functions_for_language, header
 
 
-_SUPPORTED = frozenset(("singleton", "unary_basic", "binary_basic"))
+SUPPORTED_FAMILIES = frozenset(("singleton", "unary_basic", "binary_basic"))
 
 
 def swift_functions(spec: BindingSpec) -> tuple[Function, ...]:
-    result = []
-    for function in spec.functions:
-        if "swift" not in function.expose or function.implementation != "generated":
-            continue
-        if function.behavior not in _SUPPORTED:
-            raise ValueError(
-                f"entry '{function.id}': Swift renderer does not support "
-                f"{function.behavior!r}"
-            )
-        result.append(function)
-    return tuple(sorted(result, key=lambda function: function.id))
+    """Return generated Swift entries in a stable order or name the gap."""
+    return functions_for_language(spec, "swift", SUPPORTED_FAMILIES)
 
 
 def _c_name(function: Function) -> str:
@@ -29,7 +20,7 @@ def _c_name(function: Function) -> str:
 
 def render_swift_cpp(spec: BindingSpec) -> str:
     """Render C ABI call-throughs included by the manual runtime translation unit."""
-    lines = _header(spec, "//")
+    lines = header(spec, "//")
     lines.append("// Included inside extern \"C\" by CSymEngineSwift.cpp.")
     for function in swift_functions(spec):
         name = _c_name(function)
@@ -59,7 +50,7 @@ def render_swift_cpp(spec: BindingSpec) -> str:
 
 def render_swift_api(spec: BindingSpec) -> str:
     """Render a Swift extension which relies only on manual adopt()/initialization."""
-    lines = _header(spec, "//")
+    lines = header(spec, "//")
     lines.extend([
         "import CSymEngineSwift",
         "",

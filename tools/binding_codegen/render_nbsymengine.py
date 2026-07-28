@@ -2,38 +2,19 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 from .model import BindingSpec, Function
+from .render_common import functions_for_language, header
 
 
-GENERATOR_VERSION = "1"
-
-
-def spec_digest(spec: BindingSpec) -> str:
-    """Return the whitespace-insensitive digest required by the roadmap."""
-    import yaml
-
-    document = yaml.safe_load(spec.source_path.read_text(encoding="utf-8"))
-    canonical = json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def _header(spec: BindingSpec, comment: str) -> list[str]:
-    return [
-        f"{comment} AUTO-GENERATED — DO NOT EDIT.",
-        f"{comment} schema_version: {spec.schema_version}; spec_sha256: {spec_digest(spec)}; generator_version: {GENERATOR_VERSION}",
-    ]
+# Python covers more behavior families than the other languages and reports an
+# unsupported one from ``render_python_inc``, so no selection filter is applied.
+SUPPORTED_FAMILIES: frozenset[str] | None = None
 
 
 def python_functions(spec: BindingSpec) -> tuple[Function, ...]:
     """Generated Python functions, sorted independently of YAML input order."""
-    return tuple(sorted(
-        (function for function in spec.functions
-         if "python" in function.expose and function.implementation == "generated"),
-        key=lambda function: function.id,
-    ))
+    return functions_for_language(spec, "python", SUPPORTED_FAMILIES)
 
 
 def python_excluded_names(spec: BindingSpec) -> tuple[str, ...]:
@@ -93,7 +74,7 @@ def _nb_args(function: Function) -> str:
 
 def render_python_inc(spec: BindingSpec) -> str:
     """Render the include consumed by ``core_module.cpp``."""
-    lines = _header(spec, "    //")
+    lines = header(spec, "    //")
     previous_section: str | None = None
     for function in python_functions(spec):
         section = function.adapter.get("section")
@@ -150,7 +131,7 @@ def render_python_inc(spec: BindingSpec) -> str:
 
 def render_python_pyi(spec: BindingSpec) -> str:
     """Render the generated declaration fragment appended to litgen's stub."""
-    lines = _header(spec, "#")
+    lines = header(spec, "#")
     lines.append("# Shared adapter-family declarations.")
     for function in python_functions(spec):
         parameters: list[str] = []

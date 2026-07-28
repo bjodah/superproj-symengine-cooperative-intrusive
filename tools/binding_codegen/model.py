@@ -106,25 +106,31 @@ class BindingSpec:
     source_path: Path
 
 
-def _schema_errors(document: object, schema_path: Path) -> list[str]:
+def schema_errors(document: object, schema_path: Path, collection: str, label: str) -> list[str]:
+    """Return readable JSON-schema errors, sorted and located.
+
+    Errors inside ``document[collection][i]`` are prefixed with
+    ``<label> '<id>': `` so a failure names the offending entry rather than a
+    bare array index.  Shared by ``api.yaml`` and ``test-cases.yaml``.
+    """
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     validator = Draft202012Validator(schema)
+    items = document.get(collection) if isinstance(document, Mapping) else None
     result: list[str] = []
     for error in sorted(validator.iter_errors(document), key=lambda item: list(item.absolute_path)):
         location = ".".join(str(part) for part in error.absolute_path) or "<root>"
         entry = ""
         path = list(error.absolute_path)
         if (
-            isinstance(document, Mapping)
-            and len(path) >= 2
-            and path[0] == "functions"
+            len(path) >= 2
+            and path[0] == collection
             and isinstance(path[1], int)
-            and isinstance(document.get("functions"), list)
-            and path[1] < len(document["functions"])
-            and isinstance(document["functions"][path[1]], Mapping)
-            and isinstance(document["functions"][path[1]].get("id"), str)
+            and isinstance(items, list)
+            and path[1] < len(items)
+            and isinstance(items[path[1]], Mapping)
+            and isinstance(items[path[1]].get("id"), str)
         ):
-            entry = f"entry '{document['functions'][path[1]]['id']}': "
+            entry = f"{label} '{items[path[1]]['id']}': "
         result.append(f"{entry}{location}: {error.message}")
     return result
 
@@ -229,7 +235,7 @@ def load_spec(path: Path | str = ROOT / "binding-spec" / "api.yaml") -> BindingS
         raise SpecValidationError(f"cannot read {source_path}: {error}") from error
     except yaml.YAMLError as error:
         raise SpecValidationError(f"cannot parse {source_path}: {error}") from error
-    errors = _schema_errors(document, SCHEMA_PATH)
+    errors = schema_errors(document, SCHEMA_PATH, "functions", "entry")
     if errors:
         raise SpecValidationError("schema validation failed:\n  " + "\n  ".join(errors))
     return _to_model(_as_mapping(document, "<root>"), source_path)

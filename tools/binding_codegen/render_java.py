@@ -7,23 +7,15 @@ Handle allocation, release, and exception translation intentionally live in
 from __future__ import annotations
 
 from .model import BindingSpec, Function
-from .render_nbsymengine import _header
+from .render_common import functions_for_language, header
 
 
-_SUPPORTED = frozenset(("singleton", "unary_basic", "binary_basic"))
+SUPPORTED_FAMILIES = frozenset(("singleton", "unary_basic", "binary_basic"))
 
 
 def java_functions(spec: BindingSpec) -> tuple[Function, ...]:
-    result = []
-    for function in spec.functions:
-        if "java" not in function.expose or function.implementation != "generated":
-            continue
-        if function.behavior not in _SUPPORTED:
-            raise ValueError(
-                f"entry '{function.id}': Java renderer does not support {function.behavior!r}"
-            )
-        result.append(function)
-    return tuple(sorted(result, key=lambda function: function.id))
+    """Return generated Java entries in a stable order or name the gap."""
+    return functions_for_language(spec, "java", SUPPORTED_FAMILIES)
 
 
 def _native_parameters(function: Function) -> str:
@@ -32,7 +24,7 @@ def _native_parameters(function: Function) -> str:
 
 def render_java_jni(spec: BindingSpec) -> str:
     """Render package-private native declarations used by the public facade."""
-    lines = _header(spec, "//")
+    lines = header(spec, "//")
     lines.extend([
         "package org.symengine;",
         "",
@@ -57,7 +49,7 @@ def render_java_jni(spec: BindingSpec) -> str:
 
 def render_java_api(spec: BindingSpec) -> str:
     """Render public factories and forwarding methods over manual Basic lifecycle."""
-    lines = _header(spec, "//")
+    lines = header(spec, "//")
     lines.extend([
         "package org.symengine;",
         "",
@@ -93,13 +85,13 @@ def render_java_api(spec: BindingSpec) -> str:
 
 def render_java_cpp(spec: BindingSpec) -> str:
     """Render JNI implementations that call SymEngine directly."""
-    lines = _header(spec, "//")
+    lines = header(spec, "//")
     lines.extend([
         "#include \"symengine_jni_runtime.h\"",
         "#include <exception>",
     ])
     headers = sorted({function.cpp.header for function in java_functions(spec)})
-    lines.extend(f"#include <{header}>" for header in headers)
+    lines.extend(f"#include <{include}>" for include in headers)
     for function in java_functions(spec):
         name = function.public_name("java")
         jni_parameters = ", ".join(f"jlong {argument.name}" for argument in function.arguments)

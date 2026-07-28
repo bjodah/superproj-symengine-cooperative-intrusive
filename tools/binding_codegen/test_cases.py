@@ -6,12 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-import json
-
 import yaml
-from jsonschema import Draft202012Validator
 
-from .model import BindingSpec, SpecValidationError, ROOT
+from .model import BindingSpec, SpecValidationError, ROOT, schema_errors
 
 
 TEST_CASES_PATH = ROOT / "binding-spec" / "test-cases.yaml"
@@ -50,29 +47,6 @@ class TestCaseSuite:
     source_path: Path
 
 
-def _schema_errors(document: object, schema_path: Path) -> list[str]:
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    validator = Draft202012Validator(schema)
-    result: list[str] = []
-    for error in sorted(validator.iter_errors(document), key=lambda item: list(item.absolute_path)):
-        location = ".".join(str(part) for part in error.absolute_path) or "<root>"
-        entry = ""
-        path = list(error.absolute_path)
-        if (
-            isinstance(document, Mapping)
-            and len(path) >= 2
-            and path[0] == "cases"
-            and isinstance(path[1], int)
-            and isinstance(document.get("cases"), list)
-            and path[1] < len(document["cases"])
-            and isinstance(document["cases"][path[1]], Mapping)
-            and isinstance(document["cases"][path[1]].get("id"), str)
-        ):
-            entry = f"case '{document['cases'][path[1]]['id']}': "
-        result.append(f"{entry}{location}: {error.message}")
-    return result
-
-
 def _to_model(document: Mapping[str, object], source_path: Path) -> TestCaseSuite:
     cases: list[TestCase] = []
     for raw in document["cases"]:  # type: ignore[union-attr]
@@ -104,7 +78,7 @@ def load_test_cases(path: Path | str = TEST_CASES_PATH) -> TestCaseSuite:
         raise SpecValidationError(f"cannot parse {source_path}: {error}") from error
     if not isinstance(document, Mapping):
         raise SpecValidationError(f"{source_path} must contain a mapping at the top level")
-    errors = _schema_errors(document, TEST_CASES_SCHEMA_PATH)
+    errors = schema_errors(document, TEST_CASES_SCHEMA_PATH, "cases", "case")
     if errors:
         raise SpecValidationError("test-cases schema validation failed:\n  " + "\n  ".join(errors))
     return _to_model(document, source_path)

@@ -111,6 +111,7 @@ if (BUILD_PERL_XS)
                 "${CMAKE_SOURCE_DIR}/binding-spec/test-cases.schema.json"
                 "${CMAKE_SOURCE_DIR}/tools/binding_codegen/__main__.py"
                 "${CMAKE_SOURCE_DIR}/tools/binding_codegen/model.py"
+                "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_common.py"
                 "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_perl.py"
                 "${CMAKE_SOURCE_DIR}/tools/binding_codegen/render_tests.py"
                 "${CMAKE_SOURCE_DIR}/tools/binding_codegen/test_cases.py"

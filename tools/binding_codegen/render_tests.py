@@ -6,12 +6,19 @@ exposed to a language is skipped with an explicit comment naming the case and
 the reason (never silently, per the roadmap). A case whose function is
 exposed but ``implementation: manual`` is still rendered: it tests runtime
 behavior, not codegen.
+
+The languages differ only in spelling, so each one is a ``LanguageProfile``
+describing its factory calls, string literals, file scaffolding, and the lines
+one case expands to; ``_render`` is the single shared emission loop.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Callable
+
 from .model import BindingSpec, Function
-from .render_nbsymengine import _header
+from .render_common import header
 from .test_cases import ArrangeValue, TestCase, TestCaseSuite
 
 
@@ -23,245 +30,265 @@ def _functions_by_id(spec: BindingSpec) -> dict[str, Function]:
     return {function.id: function for function in spec.functions}
 
 
-def _skip_reason(case: TestCase, function: Function, language: str) -> str | None:
+def _skip_reason(function: Function, language: str) -> str | None:
     if language not in function.expose:
         return f"'{function.id}' is not exposed to {language}"
     return None
 
 
+# --- String literals --------------------------------------------------------
+
+
+def _single_quoted(value: str) -> str:
+    """Perl/PHP single-quoted literal: only ``\\`` and ``'`` are special."""
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
+
+
+def _double_quoted(value: str) -> str:
+    """Swift/Java double-quoted literal: only ``\\`` and ``"`` are special."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+# --- Language profiles ------------------------------------------------------
+
+
+def _no_footer(emitted: tuple[TestCase, ...]) -> list[str]:
+    """Default footer for formats whose case blocks are self-contained."""
+    return []
+
+
+@dataclass(frozen=True)
+class LanguageProfile:
+    """Everything that differs between the per-language test renderers."""
+
+    language: str
+    comment: str  # banner comment marker
+    skip_prefix: str  # comment marker plus indentation for a skipped case
+    integer_call: str  # ``{}``-templated integer factory spelling
+    symbol_call: str  # ``{}``-templated symbol factory spelling
+    string_literal: Callable[[str], str]
+    emit_case: Callable[["LanguageProfile", TestCase, Function], list[str]]
+    prologue: tuple[str, ...] = ()  # lines before the generated-file banner
+    preamble: tuple[str, ...] = ()  # lines after the banner
+    footer: Callable[[tuple[TestCase, ...]], list[str]] = _no_footer
+
+    def arrange(self, argument: ArrangeValue) -> str:
+        """Render one ``arrange`` entry as a factory call in this language."""
+        if argument.kind == "integer":
+            return self.integer_call.format(int(argument.value))
+        if argument.kind == "symbol":
+            return self.symbol_call.format(self.string_literal(str(argument.value)))
+        raise ValueError(f"unsupported arrange kind {argument.kind!r}")  # schema-guarded
+
+
+def _render(spec: BindingSpec, suite: TestCaseSuite, profile: LanguageProfile) -> str:
+    """Emit a whole test file: scaffolding, one block per case, footer."""
+    functions = _functions_by_id(spec)
+    lines = [*profile.prologue, *header(spec, profile.comment), *profile.preamble]
+    emitted: list[TestCase] = []
+    for case in _sorted_cases(suite):
+        function = functions[case.call.function]
+        reason = _skip_reason(function, profile.language)
+        if reason is not None:
+            lines.append(f"{profile.skip_prefix}SKIPPED case '{case.id}': {reason}")
+            continue
+        lines.extend(profile.emit_case(profile, case, function))
+        emitted.append(case)
+    lines.extend(profile.footer(tuple(emitted)))
+    return "\n".join(lines) + "\n"
+
+
 # --- Python -----------------------------------------------------------------
+
+
+def _python_case(profile: LanguageProfile, case: TestCase, function: Function) -> list[str]:
+    lines = [f"def test_{case.id}():"]
+    for name, argument in sorted(case.arrange.items()):
+        lines.append(f"    {name} = {profile.arrange(argument)}")
+    arguments = ", ".join(case.call.arguments)
+    lines.append(f"    result = sx.{function.public_name('python')}({arguments})")
+    lines.append(f"    assert sx.str(result) == {profile.string_literal(case.expect.string)}")
+    lines.append("")
+    return lines
+
+
+PYTHON = LanguageProfile(
+    language="python",
+    comment="#",
+    skip_prefix="# ",
+    integer_call="sx.integer({})",
+    symbol_call="sx.symbol({})",
+    string_literal=repr,
+    emit_case=_python_case,
+    preamble=("import nbsymengine as sx", "", ""),
+)
 
 
 def render_python_tests(spec: BindingSpec, suite: TestCaseSuite) -> str:
     """Render a pytest file exercising the shared behavioral cases."""
-    functions = _functions_by_id(spec)
-    lines = _header(spec, "#")
-    lines.extend([
-        "import nbsymengine as sx",
-        "",
-        "",
-    ])
-    for case in _sorted_cases(suite):
-        function = functions[case.call.function]
-        reason = _skip_reason(case, function, "python")
-        if reason is not None:
-            lines.append(f"# SKIPPED case '{case.id}': {reason}")
-            continue
-        lines.append(f"def test_{case.id}():")
-        for name, argument in sorted(case.arrange.items()):
-            lines.append(f"    {name} = {_python_arrange(argument)}")
-        arguments = ", ".join(case.call.arguments)
-        public_name = function.public_name("python")
-        lines.append(f"    result = sx.{public_name}({arguments})")
-        lines.append(f"    assert sx.str(result) == {case.expect.string!r}")
-        lines.append("")
-    return "\n".join(lines) + "\n"
-
-
-def _python_arrange(argument: ArrangeValue) -> str:
-    if argument.kind == "integer":
-        return f"sx.integer({argument.value!r})"
-    if argument.kind == "symbol":
-        return f"sx.symbol({argument.value!r})"
-    raise ValueError(f"unsupported arrange kind {argument.kind!r}")  # pragma: no cover - schema-guarded
+    return _render(spec, suite, PYTHON)
 
 
 # --- Perl ---------------------------------------------------------------
 
 
+def _perl_case(profile: LanguageProfile, case: TestCase, function: Function) -> list[str]:
+    lines = ["{"]
+    for name, argument in sorted(case.arrange.items()):
+        lines.append(f"    my ${name} = {profile.arrange(argument)};")
+    arguments = ", ".join(f"${name}" for name in case.call.arguments)
+    lines.append(
+        f'    is("" . SymEngine::{function.public_name("perl")}({arguments}), '
+        f'{profile.string_literal(case.expect.string)}, {profile.string_literal(case.id)});'
+    )
+    lines.append("}")
+    return lines
+
+
+def _perl_footer(emitted: tuple[TestCase, ...]) -> list[str]:
+    return [f"done_testing({len(emitted)});" if emitted else "done_testing();"]
+
+
+PERL = LanguageProfile(
+    language="perl",
+    comment="#",
+    skip_prefix="# ",
+    integer_call="SymEngine::integer({})",
+    symbol_call="SymEngine::symbol({})",
+    string_literal=_single_quoted,
+    emit_case=_perl_case,
+    preamble=("use strict;", "use warnings;", "use Test::More;", "", "use SymEngine;", ""),
+    footer=_perl_footer,
+)
+
+
 def render_perl_tests(spec: BindingSpec, suite: TestCaseSuite) -> str:
     """Render a Test::More ``.t`` file exercising the shared behavioral cases."""
-    functions = _functions_by_id(spec)
-    lines = _header(spec, "#")
-    lines.extend([
-        "use strict;",
-        "use warnings;",
-        "use Test::More;",
-        "",
-        "use SymEngine;",
-        "",
-    ])
-    emitted = 0
-    for case in _sorted_cases(suite):
-        function = functions[case.call.function]
-        reason = _skip_reason(case, function, "perl")
-        if reason is not None:
-            lines.append(f"# SKIPPED case '{case.id}': {reason}")
-            continue
-        lines.append("{")
-        for name, argument in sorted(case.arrange.items()):
-            lines.append(f"    my ${name} = {_perl_arrange(argument)};")
-        arguments = ", ".join(f"${name}" for name in case.call.arguments)
-        public_name = function.public_name("perl")
-        lines.append(
-            f'    is("" . SymEngine::{public_name}({arguments}), '
-            f'{_perl_string(case.expect.string)}, {_perl_string(case.id)});'
-        )
-        lines.append("}")
-        emitted += 1
-    lines.append(f"done_testing({emitted});" if emitted else "done_testing();")
-    return "\n".join(lines) + "\n"
-
-
-def _perl_arrange(argument: ArrangeValue) -> str:
-    if argument.kind == "integer":
-        return f"SymEngine::integer({int(argument.value)})"
-    if argument.kind == "symbol":
-        return f"SymEngine::symbol({_perl_string(str(argument.value))})"
-    raise ValueError(f"unsupported arrange kind {argument.kind!r}")  # pragma: no cover - schema-guarded
-
-
-def _perl_string(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
-    return f"'{escaped}'"
+    return _render(spec, suite, PERL)
 
 
 # --- PHP ------------------------------------------------------------------
 
 
-def render_php_tests(spec: BindingSpec, suite: TestCaseSuite) -> str:
-    """Render a ``.phpt`` file exercising the shared behavioral cases."""
-    functions = _functions_by_id(spec)
-    header = _header(spec, "#")
-    body: list[str] = []
-    expect: list[str] = []
-    for case in _sorted_cases(suite):
-        function = functions[case.call.function]
-        reason = _skip_reason(case, function, "php")
-        if reason is not None:
-            body.append(f"// SKIPPED case '{case.id}': {reason}")
-            continue
-        for name, argument in sorted(case.arrange.items()):
-            body.append(f"${name} = {_php_arrange(argument)};")
-        arguments = ", ".join(f"${name}" for name in case.call.arguments)
-        public_name = function.public_name("php")
-        body.append(f'echo symengine_str({public_name}({arguments})), "\\n";')
-        expect.append(case.expect.string)
-    lines = [
+def _php_case(profile: LanguageProfile, case: TestCase, function: Function) -> list[str]:
+    lines = []
+    for name, argument in sorted(case.arrange.items()):
+        lines.append(f"${name} = {profile.arrange(argument)};")
+    arguments = ", ".join(f"${name}" for name in case.call.arguments)
+    lines.append(f'echo symengine_str({function.public_name("php")}({arguments})), "\\n";')
+    return lines
+
+
+def _php_footer(emitted: tuple[TestCase, ...]) -> list[str]:
+    # phpt compares stdout against --EXPECT--, one line per emitted case.
+    return ["?>", "--EXPECT--", *(case.expect.string for case in emitted)]
+
+
+PHP = LanguageProfile(
+    language="php",
+    comment="#",
+    skip_prefix="// ",
+    integer_call="symengine_integer({})",
+    symbol_call="symengine_symbol({})",
+    string_literal=_single_quoted,
+    emit_case=_php_case,
+    prologue=(
         "--TEST--",
         "Shared behavioral test cases (generated)",
         "--SKIPIF--",
         "<?php if (!extension_loaded('symengine')) die('skip symengine extension not loaded'); ?>",
         "--FILE--",
         "<?php",
-        *header,
-        *body,
-        "?>",
-        "--EXPECT--",
-        *expect,
-    ]
-    return "\n".join(lines) + "\n"
+    ),
+    footer=_php_footer,
+)
 
 
-def _php_arrange(argument: ArrangeValue) -> str:
-    if argument.kind == "integer":
-        return f"symengine_integer({int(argument.value)})"
-    if argument.kind == "symbol":
-        return f"symengine_symbol({_php_string(str(argument.value))})"
-    raise ValueError(f"unsupported arrange kind {argument.kind!r}")  # pragma: no cover - schema-guarded
-
-
-def _php_string(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
-    return f"'{escaped}'"
+def render_php_tests(spec: BindingSpec, suite: TestCaseSuite) -> str:
+    """Render a ``.phpt`` file exercising the shared behavioral cases."""
+    return _render(spec, suite, PHP)
 
 
 # --- Swift ------------------------------------------------------------------
 
 
-def render_swift_tests(spec: BindingSpec, suite: TestCaseSuite) -> str:
-    """Render an XCTest file exercising the shared behavioral cases."""
-    functions = _functions_by_id(spec)
-    lines = _header(spec, "//")
-    lines.extend([
+def _swift_case(profile: LanguageProfile, case: TestCase, function: Function) -> list[str]:
+    lines = [f"    func test_{case.id}() throws {{"]
+    for name, argument in sorted(case.arrange.items()):
+        lines.append(f"        let {name} = {profile.arrange(argument)}")
+    arguments = ", ".join(case.call.arguments)
+    lines.append(f"        let result = try SymEngine.{function.public_name('swift')}({arguments})")
+    lines.append(f'        XCTAssertEqual(try result.string(), {profile.string_literal(case.expect.string)})')
+    lines.append("    }")
+    lines.append("")
+    return lines
+
+
+SWIFT = LanguageProfile(
+    language="swift",
+    comment="//",
+    skip_prefix="    // ",
+    integer_call="try SymEngine.integer({})",
+    symbol_call="try SymEngine.symbol({})",
+    string_literal=_double_quoted,
+    emit_case=_swift_case,
+    preamble=(
         "import XCTest",
         "@testable import SymEngine",
         "",
         "final class SharedCasesTests: XCTestCase {",
-    ])
-    for case in _sorted_cases(suite):
-        function = functions[case.call.function]
-        reason = _skip_reason(case, function, "swift")
-        if reason is not None:
-            lines.append(f"    // SKIPPED case '{case.id}': {reason}")
-            continue
-        lines.append(f"    func test_{case.id}() throws {{")
-        for name, argument in sorted(case.arrange.items()):
-            lines.append(f"        let {name} = {_swift_arrange(argument)}")
-        arguments = ", ".join(case.call.arguments)
-        public_name = function.public_name("swift")
-        lines.append(f"        let result = try SymEngine.{public_name}({arguments})")
-        lines.append(f'        XCTAssertEqual(try result.string(), {_swift_string(case.expect.string)})')
-        lines.append("    }")
-        lines.append("")
-    lines.append("}")
-    return "\n".join(lines) + "\n"
+    ),
+    footer=lambda emitted: ["}"],
+)
 
 
-def _swift_arrange(argument: ArrangeValue) -> str:
-    if argument.kind == "integer":
-        return f"try SymEngine.integer({int(argument.value)})"
-    if argument.kind == "symbol":
-        return f"try SymEngine.symbol({_swift_string(str(argument.value))})"
-    raise ValueError(f"unsupported arrange kind {argument.kind!r}")  # pragma: no cover - schema-guarded
-
-
-def _swift_string(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+def render_swift_tests(spec: BindingSpec, suite: TestCaseSuite) -> str:
+    """Render an XCTest file exercising the shared behavioral cases."""
+    return _render(spec, suite, SWIFT)
 
 
 # --- Java -------------------------------------------------------------------
 
 
-def render_java_tests(spec: BindingSpec, suite: TestCaseSuite) -> str:
-    """Render a Java assert-runner class exercising the shared behavioral cases."""
-    functions = _functions_by_id(spec)
-    lines = _header(spec, "//")
-    lines.extend([
+def _java_case(profile: LanguageProfile, case: TestCase, function: Function) -> list[str]:
+    # try-with-resources so every intermediate handle is released.
+    declarations = [
+        f"Basic {name} = {profile.arrange(argument)}"
+        for name, argument in sorted(case.arrange.items())
+    ]
+    arguments = ", ".join(case.call.arguments)
+    declarations.append(
+        f"Basic result_{case.id} = SymEngine.{function.public_name('java')}({arguments})"
+    )
+    return [
+        "        try (" + "; ".join(declarations) + ") {",
+        f'            assert result_{case.id}.toString().equals({profile.string_literal(case.expect.string)}) '
+        f': "case \'{case.id}\' failed";',
+        "        }",
+    ]
+
+
+JAVA = LanguageProfile(
+    language="java",
+    comment="//",
+    skip_prefix="        // ",
+    integer_call="SymEngine.integer({})",
+    symbol_call="SymEngine.symbol({})",
+    string_literal=_double_quoted,
+    emit_case=_java_case,
+    preamble=(
         "package org.symengine;",
         "",
         "/** Generated shared behavioral test cases; run via ctest like SmokeTest. */",
         "public final class SharedCasesTest {",
         "    public static void main(String[] arguments) throws Exception {",
-    ])
-    for case in _sorted_cases(suite):
-        function = functions[case.call.function]
-        reason = _skip_reason(case, function, "java")
-        if reason is not None:
-            lines.append(f"        // SKIPPED case '{case.id}': {reason}")
-            continue
-        lines.append("        try (" + _java_try_with_resources(case, function) + ") {")
-        lines.append(
-            f'            assert result_{case.id}.toString().equals({_java_string(case.expect.string)}) '
-            f': "case \'{case.id}\' failed";'
-        )
-        lines.append("        }")
-    lines.extend([
-        "    }",
-        "}",
-    ])
-    return "\n".join(lines) + "\n"
+    ),
+    footer=lambda emitted: ["    }", "}"],
+)
 
 
-def _java_try_with_resources(case: TestCase, function: Function) -> str:
-    declarations = []
-    for name, argument in sorted(case.arrange.items()):
-        declarations.append(f"Basic {name} = {_java_arrange(argument)}")
-    arguments = ", ".join(case.call.arguments)
-    public_name = function.public_name("java")
-    declarations.append(f"Basic result_{case.id} = SymEngine.{public_name}({arguments})")
-    return "; ".join(declarations)
-
-
-def _java_arrange(argument: ArrangeValue) -> str:
-    if argument.kind == "integer":
-        return f"SymEngine.integer({int(argument.value)})"
-    if argument.kind == "symbol":
-        return f"SymEngine.symbol({_java_string(str(argument.value))})"
-    raise ValueError(f"unsupported arrange kind {argument.kind!r}")  # pragma: no cover - schema-guarded
-
-
-def _java_string(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+def render_java_tests(spec: BindingSpec, suite: TestCaseSuite) -> str:
+    """Render a Java assert-runner class exercising the shared behavioral cases."""
+    return _render(spec, suite, JAVA)
