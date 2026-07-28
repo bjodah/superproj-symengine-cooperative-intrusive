@@ -47,14 +47,15 @@ cmake -S . -B build -G Ninja \
 
 ## Latest results
 
-See [BENCHMARKS_RESULTS.md](../../BENCHMARKS_RESULTS.md) for the latest full benchmark
+See [BENCHMARKS_RESULTS.md](BENCHMARKS_RESULTS.md) for the latest full benchmark
 results including all backends (SymPy, nbsymengine, lambda_double, LLVM JIT, legacy).
 
 ## Interpretation notes
 
 - The `lambda_double` backend uses C++ interpreter (std::function closures) — no JIT.
 - The `llvm` backend JIT-compiles expression trees to native x86_64 machine code via LLVM.
-- LLVM provides ~4x speedup over `lambda_double` for scalar expression evaluation.
+- LLVM speedup over `lambda_double` is workload-dependent; see the latest full
+  results for current measurements.
 - For heterogeneous output (vector + matrix), Python-level output construction dominates.
 - The `nbsymengine-legacy` adapter adds shim overhead on top of the direct API.
 - The `legacy-symengine` adapter is optional and only available when the old `symengine.py` package is installed.
