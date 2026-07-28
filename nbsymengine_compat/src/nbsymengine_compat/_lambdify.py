@@ -4,6 +4,15 @@ from __future__ import annotations
 from nbsymengine import _core
 from ._helpers import _sympify, HAS_SYMPY, _require_sympy
 
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - NumPy is optional at import time
+    np = None
+
+# ``symengine_py_compat`` star-imports this module; keep ``np`` out of the
+# legacy public surface.
+__all__ = ['Lambdify', 'lambdify']
+
 
 def _is_matrix(obj):
     """Check if obj is a DenseMatrix (raw or wrapper)."""
@@ -19,6 +28,78 @@ def _unwrap_matrix(obj):
     if hasattr(obj, '_raw') and isinstance(obj._raw, _core.DenseMatrix):
         return obj._raw
     return obj
+
+
+# ---------------------------------------------------------------------------
+# Legacy output bookkeeping
+#
+# ``symengine.py``'s ``_Lambdify`` records ``out_shapes`` as
+# ``[np.asanyarray(expr).shape for expr in exprs]`` and flattens every
+# expression in C order into a single output buffer.  The two helpers below
+# reproduce that without ever building an object ndarray (which would require
+# ``Basic`` to be non-iterable and a ``DenseMatrix`` to have a symbolic
+# ``__array__``).
+# ---------------------------------------------------------------------------
+
+def _expr_shape(expr):
+    """NumPy-style shape recorded by legacy ``symengine.py`` for *expr*."""
+    if _is_matrix(expr):
+        raw = _unwrap_matrix(expr)
+        return (raw.nrows(), raw.ncols())
+    if isinstance(expr, _core.Basic):
+        return ()
+    if hasattr(expr, '_raw') and isinstance(expr._raw, _core.Basic):
+        return ()
+    if np is not None and isinstance(expr, np.ndarray):
+        return expr.shape
+    if isinstance(expr, (list, tuple)):
+        if not expr:
+            return (0,)
+        return (len(expr),) + _expr_shape(expr[0])
+    shape = getattr(expr, 'shape', None)  # e.g. a SymPy Matrix
+    if (isinstance(shape, tuple) and len(shape) == 2
+            and all(isinstance(d, int) for d in shape)):
+        return shape
+    return ()
+
+
+def _flatten_expr(expr, out):
+    """Append the C-order flattening of *expr* (as raw ``Basic``) to *out*."""
+    if _is_matrix(expr):
+        raw = _unwrap_matrix(expr)
+        for i in range(raw.nrows()):
+            for j in range(raw.ncols()):
+                out.append(raw.get(i, j))
+        return
+    if isinstance(expr, _core.Basic):
+        out.append(expr)
+        return
+    if hasattr(expr, '_raw') and isinstance(expr._raw, _core.Basic):
+        out.append(expr._raw)
+        return
+    if np is not None and isinstance(expr, np.ndarray):
+        for e in expr.ravel(order='C'):
+            _flatten_expr(e, out)
+        return
+    if isinstance(expr, (list, tuple)):
+        for e in expr:
+            _flatten_expr(e, out)
+        return
+    shape = getattr(expr, 'shape', None)  # e.g. a SymPy Matrix
+    if (isinstance(shape, tuple) and len(shape) == 2
+            and all(isinstance(d, int) for d in shape)):
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                out.append(_sympify(expr[i, j]))
+        return
+    out.append(_sympify(expr))
+
+
+def _shape_size(shape):
+    n = 1
+    for d in shape:
+        n *= d
+    return n
 
 
 def _to_pickle_tree(obj):
@@ -70,12 +151,30 @@ def _unpickle_lambdify(args_data, exprs_data, config):
     )
 
 
+_FLOAT64_DTYPES = (None, float)
+
+
+def _is_float64_dtype(dtype):
+    if dtype in _FLOAT64_DTYPES:
+        return True
+    if np is None:
+        return False
+    try:
+        return np.dtype(dtype) == np.float64
+    except TypeError:
+        return False
+
+
 class Lambdify:
     """Legacy Lambdify class wrapping SymPy's lambdify for numeric evaluation.
 
     Delegates to the direct ``nbsymengine.lambdify.Lambdify`` when semantics
-    match (backend='lambda'/'sympy', no opt_level, no as_scipy).  Falls back
-    to the original implementation for legacy-only features.
+    match (backend='lambda'/'sympy'/'llvm', real C-order float64 output, no
+    ``as_scipy``).  In that mode the direct object is used purely as a flat
+    ``float64`` evaluator -- output shapes, broadcasting and the
+    single-array-vs-list return convention follow legacy ``symengine.py``.
+    Falls back to the original SymPy implementation for legacy-only features
+    (complex evaluation, Fortran order, ``as_scipy``, extra kwargs).
     """
     def __init__(self, args, *exprs, backend='lambda', cse=False,
                  real=True, order='C', dtype=None, opt_level=None,
@@ -93,10 +192,17 @@ class Lambdify:
         self._dtype = dtype
         self._opt_level = opt_level
         self._extra_kwargs = dict(kwargs)
+        self._native = None
+        self._fast = None
 
-        # Determine if we can delegate to the direct implementation
+        # Determine if we can delegate to the direct implementation.  The
+        # direct native backends are real-valued, C order and float64 only;
+        # anything else keeps using the SymPy-based fallback below.
         _direct_backend = backend in ('lambda', 'sympy', 'llvm')
-        _use_direct = _direct_backend and not as_scipy and not kwargs
+        _use_direct = (
+            _direct_backend and not as_scipy and not kwargs and np is not None
+            and real and order == 'C' and _is_float64_dtype(dtype)
+        )
 
         if _use_direct:
             try:
@@ -107,36 +213,42 @@ class Lambdify:
                     _be = 'llvm'
                 else:
                     _be = backend
-                _direct_kwargs = dict(backend=_be, cse=cse, real=real, order=order, dtype=dtype or float)
+                _direct_kwargs = dict(backend=_be, cse=cse, real=real,
+                                      order=order, dtype=float)
                 if opt_level is not None and backend == 'llvm':
                     _direct_kwargs['opt_level'] = opt_level
-                if _is_matrix(args):
-                    raw_args = _unwrap_matrix(args)
-                elif isinstance(args, (list, tuple)):
-                    raw_args = [_sympify(a) for a in args]
-                else:
-                    raw_args = _sympify(args)
 
-                raw_exprs = []
+                raw_args = []
+                _flatten_expr(args, raw_args)
+                if not raw_args:
+                    raise NotImplementedError(
+                        "Support for zero arguments not yet supported")
+
+                # Legacy bookkeeping straight off the constructor arguments.
+                out_shapes = [_expr_shape(e) for e in exprs]
+                flat_exprs = []
                 for e in exprs:
-                    if _is_matrix(e):
-                        raw_exprs.append(_unwrap_matrix(e))
-                    else:
-                        raw_exprs.append(_sympify(e))
+                    _flatten_expr(e, flat_exprs)
+                if sum(_shape_size(s) for s in out_shapes) != len(flat_exprs):
+                    raise ValueError("inconsistent expression shapes")
 
-                self._direct = _DirectLambdify(raw_args, *raw_exprs, **_direct_kwargs)
-                if hasattr(self._direct, '_func'):
-                    self._func = self._direct._func
-                    self._single = self._direct._single
-                self._args = self._direct._args
-                self._exprs_list = self._direct._exprs_list
-                self.n_exprs = self._direct.n_exprs
+                # The direct object only ever sees one flat list of scalar
+                # expressions, so its own flat buffer order is ours.
+                self._direct = _DirectLambdify(raw_args, flat_exprs,
+                                               **_direct_kwargs)
+                self._native = getattr(self._direct, '_native', None)
+                self._args = raw_args
+                self._exprs_list = list(exprs)
+                self._raw_args = args
                 self.real = real
                 self.order = order
-                self._raw_args = args
+                self._setup_legacy_layout(out_shapes)
                 return
             except Exception:
-                pass  # Fall back to original implementation
+                # Fall back to original implementation
+                self._direct = None
+                self._native = None
+                self._fast = None
 
         # Original implementation for legacy-only features
         self._direct = None
@@ -166,6 +278,7 @@ class Lambdify:
         self.real = real
         self.order = order
         self.n_exprs = len(self._exprs_list)
+        self.args_size = len(self._args)
 
         sp_args = [to_sympy(a) for a in self._args]
         sp_exprs = []
@@ -184,11 +297,158 @@ class Lambdify:
             self._func = sympy.lambdify(sp_args, sp_exprs, modules='numpy', **kwargs)
             self._single = False
 
+    # -- legacy output bookkeeping / evaluation ----------------------------
+
+    def _setup_legacy_layout(self, out_shapes):
+        """Record legacy ``out_shapes``/``accum_out_sizes`` and bind a fast call."""
+        self.out_shapes = [tuple(s) for s in out_shapes]
+        self.n_exprs = len(self.out_shapes)
+        self.args_size = len(self._args)
+        out_sizes = [_shape_size(s) for s in self.out_shapes]
+        self.tot_out_size = sum(out_sizes)
+        accum = [0]
+        for size in out_sizes:
+            accum.append(accum[-1] + size)
+        self.accum_out_sizes = accum
+        self._parts = [
+            (accum[i], accum[i + 1], self.out_shapes[i])
+            for i in range(self.n_exprs)
+        ]
+        self._fast = self._build_fast_call()
+
+    def _build_fast_call(self):
+        """Closure for the common ``f(inp_1d_float64_array)`` native call.
+
+        Mirrors the legacy return convention: one array when a single
+        expression was passed, a list of arrays otherwise.
+        """
+        native = self._native
+        if native is None:
+            return None
+        call_into = native.call_into
+        empty = np.empty
+        f64 = np.float64
+        tot = self.tot_out_size
+        parts = self._parts
+
+        if self.n_exprs == 1:
+            shape = self.out_shapes[0]
+            if shape == (tot,):
+                def fast(inp):
+                    buf = empty(tot, dtype=f64)
+                    call_into(inp, buf)
+                    return buf
+            else:
+                def fast(inp):
+                    buf = empty(tot, dtype=f64)
+                    call_into(inp, buf)
+                    return buf.reshape(shape)
+        else:
+            def fast(inp):
+                buf = empty(tot, dtype=f64)
+                call_into(inp, buf)
+                return [buf[start:stop].reshape(shape)
+                        for start, stop, shape in parts]
+        return fast
+
+    def _eval_flat(self, inp, out_flat, nbroadcast):
+        """Fill *out_flat* (size ``nbroadcast * tot_out_size``) from *inp*."""
+        native = self._native
+        if native is not None:
+            native.call_into(inp, out_flat)
+            return
+        # SymPy-backed direct object: no flat C++ evaluator, go row by row.
+        tot = self.tot_out_size
+        if nbroadcast == 1:
+            self._direct.unsafe_real(inp, out_flat)
+        else:
+            for i in range(nbroadcast):
+                self._direct.unsafe_real(
+                    inp[i], out_flat[i * tot:(i + 1) * tot])
+
+    def _call_legacy(self, args, out):
+        """Legacy ``symengine.py`` ``__call__`` semantics on the direct object."""
+        if len(args) == 1:
+            args = args[0]
+        try:
+            inp = np.ascontiguousarray(args, dtype=np.float64)
+        except (TypeError, ValueError):
+            inp = np.fromiter(args, dtype=np.float64)
+
+        args_size = self.args_size
+        if inp.size < args_size or inp.size % args_size != 0:
+            raise ValueError("Broadcasting failed (input/arg size mismatch)")
+        nbroadcast = inp.size // args_size
+
+        if inp.ndim > 1:
+            if args_size > 1:
+                if inp.shape[inp.ndim - 1] != args_size:
+                    raise ValueError(
+                        "C order implies last dim (%d) == len(args) (%d)"
+                        % (inp.shape[inp.ndim - 1], args_size))
+                extra_dim = inp.shape[:inp.ndim - 1]
+            else:
+                extra_dim = inp.shape
+        elif nbroadcast > 1:
+            extra_dim = (nbroadcast,)  # special case: flat, broadcast input
+        else:
+            extra_dim = ()
+        new_out_shapes = [extra_dim + shape for shape in self.out_shapes]
+
+        tot = self.tot_out_size
+        new_tot_out_size = nbroadcast * tot
+        if out is None:
+            buf = np.empty(new_tot_out_size, dtype=np.float64)
+        else:
+            buf = self._prepare_out(out, new_tot_out_size)[:new_tot_out_size]
+
+        if nbroadcast > 1:
+            inp = inp.reshape((nbroadcast, args_size))
+        else:
+            inp = inp.reshape(args_size)
+        self._eval_flat(inp, buf, nbroadcast)
+
+        res = buf.reshape((nbroadcast, tot))
+        accum = self.accum_out_sizes
+        result = [
+            res[:, accum[idx]:accum[idx + 1]].reshape(new_out_shapes[idx])
+            for idx in range(self.n_exprs)
+        ]
+        return result[0] if self.n_exprs == 1 else result
+
+    def _prepare_out(self, out, new_tot_out_size):
+        """Validate a legacy ``out=`` buffer and return a flat writable view."""
+        if not isinstance(out, np.ndarray):
+            raise TypeError("out= must be a NumPy ndarray")
+        if out.size < new_tot_out_size:
+            raise ValueError("Incompatible size of output argument")
+        if out.dtype != np.float64:
+            raise ValueError("Output argument must have dtype float64")
+        if not out.flags['C_CONTIGUOUS']:
+            raise ValueError("Output argument needs to be C-contiguous")
+        if not out.flags['WRITEABLE']:
+            raise ValueError("Output argument needs to be writeable")
+        if out.ndim > 1:
+            if self.n_exprs > 1:
+                raise ValueError("output array with ndim > 1 assumes one output")
+            out_shape, = self.out_shapes
+            if out_shape and out.shape[-len(out_shape):] != tuple(out_shape):
+                raise ValueError("shape mismatch for output array")
+        return out.reshape(-1)
+
     def __call__(self, *args, out=None, **kwargs):
         # Delegate to direct implementation when available
         if self._direct is not None:
-            return self._direct(*args, out=out)
-        import numpy as np
+            fast = self._fast
+            if fast is not None and out is None and len(args) == 1:
+                inp = args[0]
+                if (inp.__class__ is np.ndarray and inp.ndim == 1
+                        and inp.shape[0] == self.args_size):
+                    try:
+                        return fast(inp)
+                    except TypeError:  # e.g. an object dtype -- go general
+                        pass
+            return self._call_legacy(args, out)
         # as_scipy mode: called with individual float arguments
         if self.as_scipy and len(args) > 1:
             result = self._func(*args)
@@ -227,7 +487,6 @@ class Lambdify:
         """Evaluate with real input/output arrays (no type checks)."""
         if self._direct is not None:
             return self._direct.unsafe_real(inp, out)
-        import numpy as np
         result = self._func(*inp)
         if isinstance(result, (list, tuple)):
             result = np.array(result)
@@ -238,7 +497,6 @@ class Lambdify:
         """Evaluate with complex input/output arrays (no type checks)."""
         if self._direct is not None:
             return self._direct.unsafe_complex(inp, out)
-        import numpy as np
         result = self._func(*inp)
         if isinstance(result, (list, tuple)):
             result = np.array(result)
@@ -248,15 +506,14 @@ class Lambdify:
     def as_ctypes(self):
         """Return (function_pointer, user_data) for ctypes interop."""
         import ctypes
-        import numpy as np
-        nargs = len(self._args)
-        nout = self.n_exprs
+        nargs = self.args_size
+        # SymPy fallback path has no flat-buffer bookkeeping.
+        nout = self.tot_out_size if self._direct is not None else self.n_exprs
 
         def _c_func(out_p, inp_p, user_data):
             inp = np.ctypeslib.as_array(inp_p, shape=(nargs,))
             out = np.ctypeslib.as_array(out_p, shape=(nout,))
-            result = self(inp)
-            np.copyto(out, result.flat[:nout])
+            self.unsafe_real(inp, out)
 
         c_func_type = ctypes.CFUNCTYPE(None,
             ctypes.POINTER(ctypes.c_double),

@@ -82,7 +82,7 @@ Each adapter's `build_lambdify` returns a callable `call(inp)` where `inp` is a 
 | Adapter | Non-heterogeneous | Heterogeneous |
 |---|---|---|
 | SymPy | `lmb(*inp)` | `lmb(*inp)` |
-| NBSymEngine | `lmb(inp)` | `lmb(*inp)` |
+| NBSymEngine | `lmb(inp)` | `lmb(inp)` |
 | LegacySymEngine | `lmb(inp)` | `lmb(inp)` |
 
 ## Benchmark Cases

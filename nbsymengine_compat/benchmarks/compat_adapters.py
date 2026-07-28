@@ -40,10 +40,10 @@ def _to_nbsymengine_exprs(exprs):
 class NBSymEngineLegacyAdapter(BackendAdapter):
     """nbsymengine_compat legacy compatibility adapter.
 
-    For heterogeneous output, falls back to the private ``_func`` C++
-    evaluator when the compat submodule does not expose a public
-    heterogeneous call interface.  This is tracked as a submodule
-    follow-up.
+    Uses the single-array calling convention ``lmb(inp)`` for every case,
+    matching legacy ``symengine.py``: the compat ``Lambdify`` returns one
+    shaped array for a single expression and a list of shaped arrays for
+    heterogeneous output.
     """
     @property
     def name(self) -> str:
@@ -63,7 +63,6 @@ class NBSymEngineLegacyAdapter(BackendAdapter):
 
     def build_lambdify(self, args, exprs):
         from nbsymengine_compat import symengine_py_compat as se
-        import numpy as np
         from sympy import Matrix
 
         args = _coerce_args(args)
@@ -75,27 +74,15 @@ class NBSymEngineLegacyAdapter(BackendAdapter):
             and isinstance(exprs[1], Matrix)
         )
 
+        sx_exprs = _to_nbsymengine_exprs(exprs)
         if is_heterogeneous:
-            sx_exprs = _to_nbsymengine_exprs(exprs)
+            # One Lambdify expression per output -> a list of shaped arrays.
             lmb = se.Lambdify(sx_args, *sx_exprs)
-            def call(inp):
-                # Prefer the public heterogeneous call if available,
-                # otherwise fall back to the internal _func evaluator.
-                # _func is a private C++ evaluator; this fallback will be
-                # removed once the compat submodule exposes a public
-                # heterogeneous interface (tracked as submodule follow-up).
-                try:
-                    raw = lmb(inp)
-                    if isinstance(raw, tuple):
-                        return tuple(np.array(r, dtype=float) for r in raw)
-                except (TypeError, AttributeError):
-                    pass
-                raw = lmb._func(*inp)
-                return tuple(np.array(r, dtype=float) for r in raw)
-            return call
         else:
-            sx_exprs = _to_nbsymengine_exprs(exprs)
-            lmb = se.Lambdify(sx_args, *sx_exprs)
-            def call(inp):
-                return lmb(inp)
-            return call
+            # A single expression (the whole list) -> one 1-D array, which is
+            # what the legacy-symengine adapter does as well.
+            lmb = se.Lambdify(sx_args, sx_exprs)
+
+        def call(inp):
+            return lmb(inp)
+        return call

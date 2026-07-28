@@ -91,9 +91,33 @@ including per-element string-to-float conversion.
   “about 4×” statement does not hold for these current workloads.
 - The default nbsymengine SymPy evaluator is slower than direct SymPy for the
   small ion-speciation call, but all native evaluator paths beat SymPy.
-- The compatibility shim's heterogeneous benchmark currently fails because
-  its fallback expects a removed private `Lambdify._func` attribute. This is an
-  adapter maintenance issue, not a cooperative-RCP failure.
+- The compatibility shim's heterogeneous benchmark failed in this run because
+  its fallback expected a removed private `Lambdify._func` attribute. This was
+  an adapter maintenance issue, not a cooperative-RCP failure; the fallback has
+  since been removed and the shim evaluates the heterogeneous case through the
+  public `lmb(inp)` interface. The table above is left as the record of this
+  run and has not been re-measured.
+
+## Post-optimization update (2026-07-28)
+
+After the native-Lambdify fast path landed (flat float64 output buffers
+filled in C++, shaped NumPy views returned, no per-call `Basic`/`DenseMatrix`
+construction, batched 2-D input), a quick re-measurement on the same host
+(single process pinned to logical CPU 8, 200 calls x 5 repeats, cooperative
+core) gives:
+
+| Case | nbsymengine `lambda_double` | nbsymengine LLVM | compat shim (default `lambda`) |
+|---|---:|---:|---:|
+| Ion speciation | 2.68 µs | 0.78 µs | 2.30 µs |
+| Heterogeneous vector+Jacobian | 54.6 µs | 2.09 µs | 53.3 µs |
+
+Referenced against the legacy `symengine.py` medians recorded above
+(1.46 µs ion speciation, 1.92 µs heterogeneous, both LLVM), the direct
+nbsymengine LLVM path is now faster than the legacy wrapper on both cases,
+and the compatibility shim's heterogeneous case succeeds through the public
+interface. Batched `(m, n_args)` input evaluates at roughly 6 ns per row for
+the ion-speciation expressions. These are informal single-process numbers;
+the multi-process methodology of the tables above was not repeated.
 
 ## Reproduction outline
 

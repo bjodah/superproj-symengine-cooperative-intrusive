@@ -12,15 +12,15 @@ calling convention to the underlying lambdify object differs:
 +=======================+=====================+=============================+
 | SymPy                 | ``lmb(*inp)``       | ``lmb(*inp)``               |
 +-----------------------+---------------------+-----------------------------+
-| NBSymEngine           | ``lmb(inp)``        | ``lmb(*inp)``               |
+| NBSymEngine           | ``lmb(inp)``        | ``lmb(inp)``                |
 +-----------------------+---------------------+-----------------------------+
 | LegacySymEngine       | ``lmb(inp)``        | ``lmb(inp)``                |
 +-----------------------+---------------------+-----------------------------+
 
 Notes:
 - SymPy's ``lambdify`` always unpacks positional arguments.
-- NBSymEngine's ``Lambdify`` accepts a single array for non-heterogeneous
-  cases but requires unpacked args for heterogeneous output.
+- NBSymEngine's ``Lambdify`` takes a single array in every case; passing the
+  array whole avoids the per-argument boxing that ``lmb(*inp)`` costs.
 - LegacySymEngine's ``Lambdify`` always accepts a single array/callable.
 """
 from __future__ import annotations
@@ -38,13 +38,15 @@ def _coerce_args(args):
 
 
 def _to_numpy(obj):
-    """Recursively convert nbsymengine.DenseMatrix to numpy array."""
-    import numpy as np
+    """Convert any residual nbsymengine.DenseMatrix to a numpy array.
+
+    ``nbsymengine.Lambdify`` now returns plain ``float64`` arrays, so this is
+    a no-op for its results; the DenseMatrix branch only covers callers that
+    hand back a matrix (``DenseMatrix.to_numpy()`` fills it in C++).
+    """
     import nbsymengine as sx
     if isinstance(obj, sx.DenseMatrix):
-        rows, cols = obj.nrows(), obj.ncols()
-        flat = [float(str(obj.get(i, j))) for i in range(rows) for j in range(cols)]
-        return np.array(flat, dtype=float).reshape(rows, cols)
+        return obj.to_numpy()
     if isinstance(obj, (list, tuple)):
         return type(obj)(_to_numpy(x) for x in obj)
     return obj
@@ -147,15 +149,12 @@ class NBSymEngineAdapter(BackendAdapter):
 
         if is_heterogeneous:
             lmb = sx.Lambdify(args, *exprs)
-            def call(inp):
-                raw = lmb(*inp)
-                return _to_numpy(raw)
-            return call
         else:
             lmb = sx.Lambdify(args, exprs)
-            def call(inp):
-                return _to_numpy(lmb(inp))
-            return call
+
+        def call(inp):
+            return _to_numpy(lmb(inp))
+        return call
 
 
 class NBSymEngineLLVMAdapter(BackendAdapter):
@@ -193,20 +192,12 @@ class NBSymEngineLLVMAdapter(BackendAdapter):
 
         if is_heterogeneous:
             lmb = sx.Lambdify(args, *exprs, backend='llvm')
-            def call(inp):
-                raw = lmb(*inp)
-                return _to_numpy(raw)
-            return call
-        elif isinstance(exprs, sx.DenseMatrix):
-            lmb = sx.Lambdify(args, exprs, backend='llvm')
-            def call(inp):
-                return _to_numpy(lmb(inp))
-            return call
         else:
             lmb = sx.Lambdify(args, exprs, backend='llvm')
-            def call(inp):
-                return _to_numpy(lmb(inp))
-            return call
+
+        def call(inp):
+            return _to_numpy(lmb(inp))
+        return call
 
 
 class NBSymEngineLambdaAdapter(BackendAdapter):
@@ -244,20 +235,12 @@ class NBSymEngineLambdaAdapter(BackendAdapter):
 
         if is_heterogeneous:
             lmb = sx.Lambdify(args, *exprs, backend='lambda_double')
-            def call(inp):
-                raw = lmb(*inp)
-                return _to_numpy(raw)
-            return call
-        elif isinstance(exprs, sx.DenseMatrix):
-            lmb = sx.Lambdify(args, exprs, backend='lambda_double')
-            def call(inp):
-                return _to_numpy(lmb(inp))
-            return call
         else:
             lmb = sx.Lambdify(args, exprs, backend='lambda_double')
-            def call(inp):
-                return _to_numpy(lmb(inp))
-            return call
+
+        def call(inp):
+            return _to_numpy(lmb(inp))
+        return call
 
 
 class LegacySymEngineAdapter(BackendAdapter):

@@ -459,6 +459,140 @@ def test_legacy_shim_has_direct_attribute():
     assert isinstance(f._direct, DirectLambdify)
 
 
+def _lambdify_backends():
+    """Every native backend the compat shim can delegate to."""
+    from nbsymengine_compat import symengine_py_compat as se
+    return ['lambda'] + (['llvm'] if se.have_llvm else [])
+
+
+def test_lambdify_scalar_expr_shape():
+    """A single scalar expression yields a 0-d array (legacy out_shape ())."""
+    import numpy as np
+    from nbsymengine_compat import symengine_py_compat as se
+    x, y = se.symbols('x y')
+    for backend in _lambdify_backends():
+        f = se.Lambdify([x, y], x ** 2 + y, backend=backend)
+        assert f.n_exprs == 1
+        assert f.out_shapes == [()]
+        res = f(np.array([2.0, 3.0]))
+        assert isinstance(res, np.ndarray)
+        assert res.shape == ()
+        assert res == 7.0
+
+
+def test_lambdify_vector_expr_shape():
+    """A list of k expressions yields one (k,) array, not a list."""
+    import numpy as np
+    from nbsymengine_compat import symengine_py_compat as se
+    x, y = se.symbols('x y')
+    for backend in _lambdify_backends():
+        f = se.Lambdify([x, y], [x + y, x * y, x - y], backend=backend)
+        assert f.n_exprs == 1
+        assert f.out_shapes == [(3,)]
+        res = f(np.array([2.0, 3.0]))
+        assert res.shape == (3,)
+        np.testing.assert_allclose(res, [5.0, 6.0, -1.0])
+
+
+def test_lambdify_matrix_expr_shape():
+    """A single DenseMatrix expression yields an (nrows, ncols) array."""
+    import numpy as np
+    from nbsymengine_compat import symengine_py_compat as se
+    x, y = se.symbols('x y')
+    mat = se.DenseMatrix(2, 3, [x, y, x + y, x * y, x - y, x ** 2])
+    for backend in _lambdify_backends():
+        f = se.Lambdify([x, y], mat, backend=backend)
+        assert f.out_shapes == [(2, 3)]
+        res = f(np.array([2.0, 3.0]))
+        assert isinstance(res, np.ndarray)
+        assert res.shape == (2, 3)
+        np.testing.assert_allclose(
+            res, [[2.0, 3.0, 5.0], [6.0, -1.0, 4.0]])
+
+
+def test_lambdify_heterogeneous_returns_list():
+    """Heterogeneous (vector, jacobian) output is a *list* of shaped arrays."""
+    import numpy as np
+    from nbsymengine_compat import symengine_py_compat as se
+    x, y = se.symbols('x y')
+    args = se.DenseMatrix(2, 1, [x, y])
+    vec = se.DenseMatrix(2, 1, [x ** 3 * y, (x + 1) * (y + 1)])
+    jac = vec.jacobian(args)
+    for backend in _lambdify_backends():
+        f = se.Lambdify(args, vec, jac, backend=backend)
+        assert f.n_exprs == 2
+        assert f.out_shapes == [(2, 1), (2, 2)]
+        res = f(np.array([7.0, 11.0]))
+        assert isinstance(res, list)  # legacy returns a list, not a tuple
+        v, m = res
+        assert v.shape == (2, 1) and m.shape == (2, 2)
+        X, Y = 7.0, 11.0
+        np.testing.assert_allclose(v, [[X ** 3 * Y], [(X + 1) * (Y + 1)]])
+        np.testing.assert_allclose(
+            m, [[3 * X ** 2 * Y, X ** 3], [Y + 1, X + 1]])
+
+
+def test_lambdify_broadcasting():
+    """A (m, n_args) input adds a leading m dimension to every output."""
+    import numpy as np
+    from nbsymengine_compat import symengine_py_compat as se
+    x, y = se.symbols('x y')
+    mat = se.DenseMatrix(2, 1, [x + y, x * y])
+    inp = np.array([[2.0, 3.0], [5.0, 7.0], [11.0, 13.0]])
+    for backend in _lambdify_backends():
+        f = se.Lambdify([x, y], [x - y], mat, backend=backend)
+        vec_out, mat_out = f(inp)
+        assert vec_out.shape == (3, 1)
+        assert mat_out.shape == (3, 2, 1)
+        np.testing.assert_allclose(vec_out.ravel(), [-1.0, -2.0, -2.0])
+        np.testing.assert_allclose(
+            mat_out.reshape(3, 2), [[5.0, 6.0], [12.0, 35.0], [24.0, 143.0]])
+        # A flat input whose size is a multiple of n_args broadcasts too.
+        flat_out = f(inp.ravel())
+        np.testing.assert_allclose(flat_out[0], vec_out)
+        np.testing.assert_allclose(flat_out[1], mat_out)
+
+
+def test_lambdify_out_buffer():
+    """out= fills a flat, writable, C-contiguous float64 buffer in place."""
+    import numpy as np
+    import pytest
+    from nbsymengine_compat import symengine_py_compat as se
+    x, y = se.symbols('x y')
+    mat = se.DenseMatrix(2, 2, [x, y, x + y, x * y])
+    for backend in _lambdify_backends():
+        f = se.Lambdify([x, y], mat, backend=backend)
+        buf = np.empty(4)
+        res = f(np.array([2.0, 3.0]), out=buf)
+        np.testing.assert_allclose(buf, [2.0, 3.0, 5.0, 6.0])
+        np.testing.assert_allclose(res, [[2.0, 3.0], [5.0, 6.0]])
+
+        # Broadcasting writes nbroadcast * tot_out_size values.
+        big = np.empty(8)
+        f(np.array([[2.0, 3.0], [5.0, 7.0]]), out=big)
+        np.testing.assert_allclose(
+            big, [2.0, 3.0, 5.0, 6.0, 5.0, 7.0, 12.0, 35.0])
+
+        with pytest.raises(ValueError):
+            f(np.array([2.0, 3.0]), out=np.empty(3))
+        with pytest.raises(ValueError):
+            f(np.array([2.0, 3.0]), out=np.empty(4, dtype=int))
+        read_only = np.empty(4)
+        read_only.flags['WRITEABLE'] = False
+        with pytest.raises(ValueError):
+            f(np.array([2.0, 3.0]), out=read_only)
+
+
+def test_lambdify_no_private_func_on_native_backends():
+    """Native delegation must not expose/rely on a private ``_func``."""
+    from nbsymengine_compat import symengine_py_compat as se
+    x = se.Symbol('x')
+    for backend in _lambdify_backends():
+        f = se.Lambdify([x], x * x, backend=backend)
+        assert f._direct is not None
+        assert not hasattr(f, '_func')
+
+
 def test_legacy_shim_boolean_classes():
     """Legacy shim exposes boolean classes correctly."""
     from nbsymengine_compat import symengine_py_compat as se
