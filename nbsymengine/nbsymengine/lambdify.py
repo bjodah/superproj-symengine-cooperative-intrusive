@@ -11,6 +11,11 @@ from typing import Any, List, Optional, Tuple
 
 from nbsymengine import _core
 
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - NumPy is optional at import time
+    np = None
+
 have_llvm = getattr(_core, 'have_llvm', False)
 
 
@@ -145,22 +150,20 @@ class _OutputLayout:
     def restore(self, flat_values, offset: int):
         """Restore structure from *flat_values* starting at *offset*.
 
-        Returns ``(restored_value, new_offset)``.
+        Returns ``(restored_value, new_offset)``.  Matrix outputs are
+        returned as ``(nrows, ncols)`` NumPy arrays (matching the
+        semantics of the legacy ``symengine.py`` Lambdify).
         """
         if self.kind == 'scalar':
             return flat_values[offset], offset + 1
         elif self.kind == 'vector':
-            import numpy as np
             n = self.shape[0]
             return np.asarray(flat_values[offset:offset + n], dtype=np.float64), offset + n
         elif self.kind == 'matrix':
-            import numpy as np
             rows, cols = self.shape
             n = rows * cols
-            mat = _core.DenseMatrix(rows, cols)
-            flat_arr = np.asarray(flat_values[offset:offset + n], dtype=np.float64)
-            mat.set_from_array(flat_arr)
-            return mat, offset + n
+            arr = np.asarray(flat_values[offset:offset + n], dtype=np.float64)
+            return arr.reshape(rows, cols), offset + n
         elif self.kind == 'nested':
             parts = []
             off = offset
@@ -194,6 +197,32 @@ def _record_single_layout(expr) -> _OutputLayout:
     if _is_dense_matrix(expr):
         return _OutputLayout('matrix', shape=(expr.nrows(), expr.ncols()))
     return _OutputLayout('scalar')
+
+
+def _layout_parts(layout: _OutputLayout) -> List[Tuple[int, int, Tuple[int, ...]]]:
+    """Precompute ``(start, stop, shape)`` for every top-level output.
+
+    ``shape`` is ``()`` for scalar outputs.  This mirrors the
+    ``out_shapes``/``accum_out_sizes`` bookkeeping of legacy ``symengine.py``.
+    """
+    if layout.kind == 'nested':
+        subs = layout.nested
+    else:
+        subs = [layout]
+    parts = []
+    offset = 0
+    for sub in subs:
+        if sub.kind == 'scalar':
+            shape: Tuple[int, ...] = ()
+            size = 1
+        else:
+            shape = tuple(sub.shape)
+            size = 1
+            for d in shape:
+                size *= d
+        parts.append((offset, offset + size, shape))
+        offset += size
+    return parts
 
 
 def _flatten_exprs(exprs) -> List:
@@ -249,17 +278,13 @@ def _normalize_args(args) -> List:
         return [args]
 
     # NumPy object array
-    try:
-        import numpy as np
-        if isinstance(args, np.ndarray):
-            if args.dtype == object:
-                return list(args.flat)
-            raise TypeError(
-                f"NumPy argument array has dtype {args.dtype!r}, expected object. "
-                "Pass a list of symbols or a DenseMatrix."
-            )
-    except ImportError:
-        pass
+    if np is not None and isinstance(args, np.ndarray):
+        if args.dtype == object:
+            return list(args.flat)
+        raise TypeError(
+            f"NumPy argument array has dtype {args.dtype!r}, expected object. "
+            "Pass a list of symbols or a DenseMatrix."
+        )
 
     raise TypeError(
         f"Cannot normalize arguments of type {type(args).__name__!r}. "
@@ -293,12 +318,8 @@ def _normalize_exprs(exprs) -> List:
     if isinstance(exprs, _core.Basic):
         return [exprs]
 
-    try:
-        import numpy as np
-        if isinstance(exprs, np.ndarray) and exprs.dtype == object:
-            return list(exprs.flat)
-    except ImportError:
-        pass
+    if np is not None and isinstance(exprs, np.ndarray) and exprs.dtype == object:
+        return list(exprs.flat)
 
     raise TypeError(
         f"Cannot normalize expression of type {type(exprs).__name__!r}. "
@@ -333,6 +354,19 @@ class Lambdify:
         Assume real-valued inputs. Default: ``True``.
     order : str
         Array memory order. Default: ``"C"``.
+
+    Notes
+    -----
+    Calling the object returns plain NumPy data (matching the semantics of
+    legacy ``symengine.py``): a Python ``float`` for a single scalar
+    expression, a 1-D ``float64`` array for a list of scalar expressions, an
+    ``(nrows, ncols)`` array for a ``DenseMatrix`` output, and a tuple of
+    such objects for heterogeneous outputs.  No ``DenseMatrix`` (and no
+    per-element ``Basic``) is ever constructed during evaluation.
+
+    The native backends (``lambda_double``/``llvm``) also accept a batched
+    ``(m, n_args)`` C-order input array, in which case every output gains a
+    leading ``m`` dimension.
     """
 
     def __init__(self, args, *exprs, backend='sympy', cse=False,
@@ -374,6 +408,7 @@ class Lambdify:
                 self._args, flat_exprs, cse=cse
             )
             self._n_flat = self._native.n_outputs()
+            self._setup_dispatch()
             return  # Skip SymPy path entirely
 
         # Native LLVM JIT backend
@@ -390,6 +425,7 @@ class Lambdify:
                 self._args, flat_exprs, cse=cse, opt_level=opt_level
             )
             self._n_flat = self._native.n_outputs()
+            self._setup_dispatch()
             return
 
         # Convert to SymPy
@@ -449,6 +485,99 @@ class Lambdify:
         # Cache flat count for out= validation
         flat_exprs = _flatten_exprs(self._exprs_list)
         self._n_flat = len(flat_exprs)
+        self._setup_dispatch()
+
+    # -- fast-path setup ----------------------------------------------------
+
+    def _setup_dispatch(self):
+        """Precompute output bookkeeping and bind a per-instance fast call."""
+        self._parts = _layout_parts(self._layout)
+        self._out_shapes = [shape for _, _, shape in self._parts]
+        self._accum_out_sizes = [start for start, _, _ in self._parts]
+        self._accum_out_sizes.append(self._n_flat)
+        self._fast = self._build_fast_call() if self._native is not None else None
+
+    def _build_fast_call(self):
+        """Build the closure used for ``f(inp)`` on the native backends.
+
+        The closure keeps no per-element Python objects: the input is coerced
+        once with ``np.ascontiguousarray`` (a no-op for float64 C-contiguous
+        arrays) and the flat output buffer is filled in C++.
+        """
+        call_into = self._native.call_into
+        n_flat = self._n_flat
+        kind = self._layout.kind
+        empty = np.empty
+        ascontiguousarray = np.ascontiguousarray
+        f64 = np.float64
+        general = self._call_general
+
+        if kind == 'vector':
+            def fast(inp):
+                try:
+                    arr = ascontiguousarray(inp, dtype=f64)
+                except TypeError:  # e.g. a generator -- use the slow path
+                    return general((inp,), None)
+                if arr.ndim != 1:
+                    return general((inp,), None)
+                buf = empty(n_flat, dtype=f64)
+                call_into(arr, buf)
+                return buf
+        elif kind == 'scalar':
+            def fast(inp):
+                try:
+                    arr = ascontiguousarray(inp, dtype=f64)
+                except TypeError:  # e.g. a generator -- use the slow path
+                    return general((inp,), None)
+                if arr.ndim != 1:
+                    return general((inp,), None)
+                buf = empty(1, dtype=f64)
+                call_into(arr, buf)
+                return float(buf[0])
+        else:  # 'matrix' / 'nested'
+            restore = self._restore_flat
+
+            def fast(inp):
+                try:
+                    arr = ascontiguousarray(inp, dtype=f64)
+                except TypeError:  # e.g. a generator -- use the slow path
+                    return general((inp,), None)
+                if arr.ndim != 1:
+                    return general((inp,), None)
+                buf = empty(n_flat, dtype=f64)
+                call_into(arr, buf)
+                return restore(buf)
+        return fast
+
+    # -- output restoration (views into one flat buffer, no copies) ---------
+
+    def _restore_flat(self, buf):
+        """Reshape a flat ``(n_flat,)`` result buffer to the output layout."""
+        kind = self._layout.kind
+        if kind == 'vector':
+            return buf
+        if kind == 'scalar':
+            return float(buf[0])
+        if kind == 'matrix':
+            return buf.reshape(self._layout.shape)
+        return tuple(
+            float(buf[start]) if not shape else buf[start:stop].reshape(shape)
+            for start, stop, shape in self._parts
+        )
+
+    def _restore_batched(self, buf, m: int):
+        """Reshape an ``(m, n_flat)`` result buffer to the output layout."""
+        kind = self._layout.kind
+        if kind == 'vector':
+            return buf
+        if kind == 'scalar':
+            return buf.reshape(m)
+        if kind == 'matrix':
+            return buf.reshape((m,) + tuple(self._layout.shape))
+        return tuple(
+            buf[:, start:stop].reshape((m,) + shape)
+            for start, stop, shape in self._parts
+        )
 
     @property
     def n_args(self) -> int:
@@ -468,75 +597,52 @@ class Lambdify:
         Accepted call signatures:
         - ``f([1.0, 2.0, 3.0])``
         - ``f(np.array([...]))``
+        - ``f(np.array([[...], [...]]))`` (batched, native backends)
         - ``f(1.0, 2.0, 3.0)`` (scalar varargs)
-        """
-        import numpy as np
 
-        # Determine input values
+        Returns a Python ``float`` for scalar outputs and NumPy arrays
+        (or a tuple of them for heterogeneous outputs) otherwise.
+        """
+        fast = self._fast
+        if fast is not None and out is None and len(args) == 1:
+            return fast(args[0])
+        return self._call_general(args, out)
+
+    def _coerce_input(self, args):
+        """Coerce call arguments into a contiguous float64 ndarray."""
+        inp = args[0] if len(args) == 1 else args
+        try:
+            arr = np.ascontiguousarray(inp, dtype=np.float64)
+        except TypeError:
+            arr = np.fromiter(inp, dtype=np.float64)
+        if arr.ndim == 0:
+            arr = arr.reshape(1)
+        return arr
+
+    def _call_general(self, args, out):
         if len(args) == 0:
             raise ValueError("At least one argument is required.")
-        elif len(args) == 1:
+
+        # Native lambda_double / llvm evaluation
+        if self._native is not None:
+            return self._call_native(self._coerce_input(args), out)
+
+        if len(args) == 1:
             inp = args[0]
-            if isinstance(inp, np.ndarray):
-                if inp.ndim == 2:
+            if np is not None and isinstance(inp, np.ndarray):
+                if inp.ndim > 1:
                     raise NotImplementedError(
-                        "Batched 2-D input arrays are not supported yet. "
-                        "Pass a 1-D array or use scalar varargs."
+                        "Batched 2-D input arrays are not supported by the "
+                        "'sympy' backend.  Use backend='llvm' or "
+                        "backend='lambda_double'."
                     )
-                # Fast path: reuse contiguous float64 array directly
-                if inp.dtype == np.float64 and inp.flags['C_CONTIGUOUS']:
-                    inp_arr = inp.reshape(-1)
-                else:
-                    inp_arr = np.ascontiguousarray(inp, dtype=np.float64).reshape(-1)
-                inp_list = list(inp_arr)
+                inp_list = list(inp)
             elif hasattr(inp, '__iter__'):
                 inp_list = list(inp)
             else:
                 inp_list = [inp]
         else:
-            # Scalar varargs
             inp_list = list(args)
-            inp_arr = np.asarray(inp_list, dtype=np.float64)
-
-        # Native lambda_double / llvm evaluation
-        if self._backend in ('lambda_double', 'llvm'):
-            import numpy as np
-            if len(args) == 1 and isinstance(args[0], np.ndarray):
-                pass  # inp_arr already set above
-            else:
-                inp_arr = np.asarray(inp_list, dtype=np.float64)
-            if self._layout.kind == 'scalar':
-                out_arr = np.empty(1, dtype=np.float64)
-                self._native.call(inp_arr, out_arr)
-                result = float(out_arr[0])
-                if out is not None:
-                    np.copyto(np.asarray(out).flat[:1], out_arr[:1])
-                    return out
-                return result
-            elif self._layout.kind == 'vector':
-                out_arr = np.empty(self._n_flat, dtype=np.float64)
-                self._native.call(inp_arr, out_arr)
-                if out is not None:
-                    out_arr_np = np.asarray(out)
-                    if out_arr_np.size == self._n_flat:
-                        np.copyto(out_arr_np.reshape(-1), out_arr)
-                        return out
-                    raise ValueError(
-                        f"out= array shape {out_arr_np.shape} is incompatible "
-                        f"with output flat size {self._n_flat}."
-                    )
-                return out_arr
-            else:
-                # matrix or nested: evaluate flat, restore layout
-                out_arr = np.empty(self._n_flat, dtype=np.float64)
-                self._native.call(inp_arr, out_arr)
-                restored, _ = self._layout.restore(out_arr, 0)
-                if out is not None:
-                    raise NotImplementedError(
-                        "out= is only supported for flat numeric outputs. "
-                        f"Output layout is {self._layout.kind!r}."
-                    )
-                return restored
 
         # Evaluate
         if self._multi_matrix:
@@ -576,9 +682,53 @@ class Lambdify:
 
         return restored
 
+    def _call_native(self, arr, out):
+        """Evaluate a native backend from a contiguous float64 input array.
+
+        ``arr`` is either ``(n_args,)`` or ``(m, n_args)`` (C order); in the
+        latter case every output gains a leading ``m`` dimension.
+        """
+        nd = arr.ndim
+        if nd == 1:
+            m = 1
+            batched = False
+        elif nd == 2:
+            m = arr.shape[0]
+            batched = True
+        else:
+            raise NotImplementedError(
+                "Only 1-D and 2-D (C order) input arrays are supported, "
+                f"got ndim={nd}."
+            )
+        n_flat = self._n_flat
+
+        if out is None:
+            buf = np.empty((m, n_flat) if batched else n_flat, dtype=np.float64)
+            self._native.call_into(arr, buf)
+            if batched:
+                return self._restore_batched(buf, m)
+            return self._restore_flat(buf)
+
+        if np is None or not isinstance(out, np.ndarray):
+            raise TypeError("out= must be a NumPy ndarray.")
+        if out.size != m * n_flat:
+            raise ValueError(
+                f"out= array shape {out.shape} is incompatible "
+                f"with output flat size {m * n_flat}."
+            )
+        if out.dtype != np.float64:
+            raise ValueError(
+                f"out= array must have dtype float64, got {out.dtype!r}."
+            )
+        if not out.flags['C_CONTIGUOUS']:
+            raise NotImplementedError("out= array must be C-contiguous.")
+        if not out.flags['WRITEABLE']:
+            raise ValueError("out= array must be writeable.")
+        self._native.call_into(arr, out.reshape(-1))
+        return out
+
     def unsafe_real(self, inp, out):
         """Evaluate with real input/output arrays (no type checks)."""
-        import numpy as np
         if self._native is not None:
             inp_arr = np.ascontiguousarray(inp, dtype=np.float64).reshape(-1)
             out_arr = np.ascontiguousarray(out, dtype=np.float64).reshape(-1)
@@ -612,7 +762,6 @@ class Lambdify:
             If the ``lambda_double`` backend is active, since the native
             C++ evaluator only supports real-valued evaluation.
         """
-        import numpy as np
         if self._native is not None:
             raise NotImplementedError(
                 f"The {self._backend!r} backend does not support complex "

@@ -111,17 +111,17 @@ def _basic_to_float(val):
 
 
 def test_matrix_output():
-    """Lambdify with a DenseMatrix expression."""
+    """Lambdify with a DenseMatrix expression returns a shaped NumPy array."""
     import nbsymengine as sx
     x, y = sx.symbol('x'), sx.symbol('y')
     mat = sx.DenseMatrix(2, 1, [x + y, x * y])
     f = sx.Lambdify([x, y], mat)
     result = f([2.0, 3.0])
-    assert _is_dense_matrix(result)
-    assert result.nrows() == 2
-    assert result.ncols() == 1
-    assert abs(_basic_to_float(result.get(0, 0)) - 5.0) < 1e-12
-    assert abs(_basic_to_float(result.get(1, 0)) - 6.0) < 1e-12
+    assert isinstance(result, np.ndarray)
+    assert result.dtype == np.float64
+    assert result.shape == (2, 1)
+    assert abs(result[0, 0] - 5.0) < 1e-12
+    assert abs(result[1, 0] - 6.0) < 1e-12
 
 
 # ---------------------------------------------------------------------------
@@ -139,18 +139,12 @@ def test_heterogeneous_output():
     assert isinstance(result, tuple)
     assert len(result) == 2
     r_vec, r_mat = result
-    assert _is_dense_matrix(r_vec)
-    assert _is_dense_matrix(r_mat)
-    assert r_vec.nrows() == 2
-    assert r_vec.ncols() == 1
-    assert r_mat.nrows() == 2
-    assert r_mat.ncols() == 2
-    assert abs(_basic_to_float(r_vec.get(0, 0)) - 5.0) < 1e-12
-    assert abs(_basic_to_float(r_vec.get(1, 0)) - 6.0) < 1e-12
-    assert abs(_basic_to_float(r_mat.get(0, 0)) - 2.0) < 1e-12
-    assert abs(_basic_to_float(r_mat.get(0, 1)) - 3.0) < 1e-12
-    assert abs(_basic_to_float(r_mat.get(1, 0)) - 3.0) < 1e-12
-    assert abs(_basic_to_float(r_mat.get(1, 1)) - 2.0) < 1e-12
+    assert isinstance(r_vec, np.ndarray)
+    assert isinstance(r_mat, np.ndarray)
+    assert r_vec.shape == (2, 1)
+    assert r_mat.shape == (2, 2)
+    assert np.allclose(r_vec, [[5.0], [6.0]])
+    assert np.allclose(r_mat, [[2.0, 3.0], [3.0, 2.0]])
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +253,7 @@ def test_reject_ambiguous_nested_args():
 
 
 def test_batched_2d_input_raises():
-    """2-D input arrays should raise NotImplementedError."""
+    """2-D input arrays are unsupported by the 'sympy' backend."""
     np = pytest.importorskip('numpy')
     import nbsymengine as sx
     x = sx.symbol('x')
@@ -414,9 +408,9 @@ def test_lambda_double_matrix_output():
     mat = sx.DenseMatrix(2, 1, [x + y, x * y])
     f = sx.Lambdify([x, y], mat, backend='lambda_double')
     result = f([2.0, 3.0])
-    assert _is_dense_matrix(result)
-    assert result.nrows() == 2
-    assert result.ncols() == 1
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (2, 1)
+    assert np.allclose(result, [[5.0], [6.0]])
 
 
 def test_lambda_double_functions():
@@ -658,11 +652,9 @@ def test_Lambdify_LLVM_matrix_output():
     mat = sx.DenseMatrix(2, 1, [x + y, x * y])
     f = sx.Lambdify([x, y], mat, backend='llvm')
     result = f([2.0, 3.0])
-    assert _is_dense_matrix(result)
-    assert result.nrows() == 2
-    assert result.ncols() == 1
-    assert abs(_basic_to_float(result.get(0, 0)) - 5.0) < 1e-12
-    assert abs(_basic_to_float(result.get(1, 0)) - 6.0) < 1e-12
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (2, 1)
+    assert np.allclose(result, [[5.0], [6.0]])
 
 
 @pytest.mark.skipif(not _llvm_available, reason="LLVM not available")
@@ -677,12 +669,12 @@ def test_Lambdify_LLVM_heterogeneous():
     assert isinstance(result, tuple)
     assert len(result) == 2
     r_vec, r_mat = result
-    assert _is_dense_matrix(r_vec)
-    assert _is_dense_matrix(r_mat)
-    assert abs(_basic_to_float(r_vec.get(0, 0)) - 5.0) < 1e-12
-    assert abs(_basic_to_float(r_vec.get(1, 0)) - 6.0) < 1e-12
-    assert abs(_basic_to_float(r_mat.get(0, 0)) - 2.0) < 1e-12
-    assert abs(_basic_to_float(r_mat.get(0, 1)) - 3.0) < 1e-12
+    assert isinstance(r_vec, np.ndarray)
+    assert isinstance(r_mat, np.ndarray)
+    assert r_vec.shape == (2, 1)
+    assert r_mat.shape == (2, 2)
+    assert np.allclose(r_vec, [[5.0], [6.0]])
+    assert np.allclose(r_mat, [[2.0, 3.0], [3.0, 2.0]])
 
 
 @pytest.mark.skipif(not _llvm_available, reason="LLVM not available")
@@ -828,6 +820,156 @@ def test_Lambdify_LLVM_cse_lambda_double():
     f = sx.LambdifyCSE([x], x * x + 1, backend='llvm')
     result = f([3.0])
     assert abs(float(result) - 10.0) < 1e-12
+
+
+# ---------------------------------------------------------------------------
+# Broadcasting (2-D input) on the native backends
+# ---------------------------------------------------------------------------
+
+_native_backends = ['lambda_double'] + (['llvm'] if _llvm_available else [])
+
+
+@pytest.mark.parametrize('backend', _native_backends)
+def test_broadcast_vector_1d_vs_2d(backend):
+    """A 2-D input broadcasts row-wise and matches the 1-D results."""
+    import nbsymengine as sx
+    x, y = sx.symbol('x'), sx.symbol('y')
+    f = sx.Lambdify([x, y], [x + y, x * y, sx.sin(x)], backend=backend)
+    rows = np.array([[2.0, 3.0], [1.5, -0.5], [0.0, 4.0]])
+    batched = f(rows)
+    assert batched.shape == (3, 3)
+    for i, row in enumerate(rows):
+        assert np.allclose(batched[i], f(row))
+
+
+@pytest.mark.parametrize('backend', _native_backends)
+def test_broadcast_scalar_and_matrix_layouts(backend):
+    """Batched input adds a leading dimension for every output layout."""
+    import nbsymengine as sx
+    x, y = sx.symbol('x'), sx.symbol('y')
+    rows = np.array([[2.0, 3.0], [4.0, 5.0]])
+
+    f_scalar = sx.Lambdify([x, y], x + y, backend=backend)
+    r_scalar = f_scalar(rows)
+    assert r_scalar.shape == (2,)
+    assert np.allclose(r_scalar, [5.0, 9.0])
+
+    mat = sx.DenseMatrix(2, 2, [x, y, y, x])
+    f_mat = sx.Lambdify([x, y], mat, backend=backend)
+    r_mat = f_mat(rows)
+    assert r_mat.shape == (2, 2, 2)
+    assert np.allclose(r_mat[0], [[2.0, 3.0], [3.0, 2.0]])
+    assert np.allclose(r_mat[1], [[4.0, 5.0], [5.0, 4.0]])
+
+    vec = sx.DenseMatrix(2, 1, [x + y, x * y])
+    f_nested = sx.Lambdify([x, y], vec, mat, backend=backend)
+    r_vec_b, r_mat_b = f_nested(rows)
+    assert r_vec_b.shape == (2, 2, 1)
+    assert r_mat_b.shape == (2, 2, 2)
+    assert np.allclose(r_vec_b[1], [[9.0], [20.0]])
+    assert np.allclose(r_mat_b[1], [[4.0, 5.0], [5.0, 4.0]])
+
+
+@pytest.mark.parametrize('backend', _native_backends)
+def test_mixed_scalar_matrix_output(backend):
+    """A (scalar, matrix) output keeps scalars as floats, matrices as arrays."""
+    import nbsymengine as sx
+    x, y = sx.symbol('x'), sx.symbol('y')
+    mat = sx.DenseMatrix(2, 2, [x, y, y, x])
+    f = sx.Lambdify([x, y], x + y, mat, backend=backend)
+    r_scalar, r_mat = f([2.0, 3.0])
+    assert isinstance(r_scalar, float)
+    assert abs(r_scalar - 5.0) < 1e-12
+    assert r_mat.shape == (2, 2)
+    assert np.allclose(r_mat, [[2.0, 3.0], [3.0, 2.0]])
+    b_scalar, b_mat = f(np.array([[2.0, 3.0], [4.0, 5.0]]))
+    assert b_scalar.shape == (2,)
+    assert np.allclose(b_scalar, [5.0, 9.0])
+    assert b_mat.shape == (2, 2, 2)
+
+
+@pytest.mark.parametrize('backend', _native_backends)
+def test_broadcast_out_flat_buffer(backend):
+    """out= accepts an (m, n_flat) buffer for batched evaluation."""
+    import nbsymengine as sx
+    x, y = sx.symbol('x'), sx.symbol('y')
+    f = sx.Lambdify([x, y], [x + y, x * y], backend=backend)
+    rows = np.array([[2.0, 3.0], [4.0, 5.0]])
+    out = np.zeros((2, 2))
+    result = f(rows, out=out)
+    assert result is out
+    assert np.allclose(out, [[5.0, 6.0], [9.0, 20.0]])
+
+
+@pytest.mark.parametrize('backend', _native_backends)
+def test_call_alloc_2d(backend):
+    """The native call_alloc returns (m, n_outputs) for 2-D input."""
+    import nbsymengine as sx
+    x, y = sx.symbol('x'), sx.symbol('y')
+    f = sx.Lambdify([x, y], [x + y, x * y], backend=backend)
+    native = f._native
+    flat = native.call_alloc(np.array([2.0, 3.0]))
+    assert flat.shape == (2,)
+    assert np.allclose(flat, [5.0, 6.0])
+    batched = native.call_alloc(np.array([[2.0, 3.0], [4.0, 5.0]]))
+    assert batched.dtype == np.float64
+    assert batched.shape == (2, 2)
+    assert np.allclose(batched, [[5.0, 6.0], [9.0, 20.0]])
+    with pytest.raises(ValueError):
+        native.call_alloc(np.zeros((2, 3)))
+
+
+@pytest.mark.parametrize('backend', _native_backends)
+def test_out_matrix_layout_flat_buffer(backend):
+    """out= with a matrix layout fills a flat float64 buffer."""
+    import nbsymengine as sx
+    x, y = sx.symbol('x'), sx.symbol('y')
+    mat = sx.DenseMatrix(2, 2, [x, y, y, x])
+    f = sx.Lambdify([x, y], mat, backend=backend)
+    out = np.zeros(4)
+    result = f([2.0, 3.0], out=out)
+    assert result is out
+    assert np.allclose(out, [2.0, 3.0, 3.0, 2.0])
+
+
+@pytest.mark.parametrize('backend', _native_backends)
+def test_call_does_not_mutate_input(backend):
+    """Regression: evaluation must not write into the input array."""
+    import nbsymengine as sx
+    x, y = sx.symbol('x'), sx.symbol('y')
+    f = sx.Lambdify([x, y], [x + y, x * y], backend=backend)
+    inp = np.array([2.0, 3.0], dtype=np.float64)
+    original = inp.copy()
+    for _ in range(3):
+        f(inp)
+    assert np.array_equal(inp, original)
+
+
+# ---------------------------------------------------------------------------
+# DenseMatrix.to_numpy
+# ---------------------------------------------------------------------------
+
+def test_dense_matrix_to_numpy():
+    """DenseMatrix.to_numpy() returns a float64 (nrows, ncols) array."""
+    import nbsymengine as sx
+    mat = sx.DenseMatrix(2, 3, [sx.integer(1), sx.integer(2), sx.integer(3),
+                                sx.integer(4), sx.integer(5), sx.integer(6)])
+    arr = mat.to_numpy()
+    assert isinstance(arr, np.ndarray)
+    assert arr.dtype == np.float64
+    assert arr.shape == (2, 3)
+    assert np.allclose(arr, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    # __array__ hook
+    assert np.allclose(np.asarray(mat), arr)
+
+
+def test_dense_matrix_to_numpy_non_numeric_raises():
+    """DenseMatrix.to_numpy() propagates the SymEngine error for symbols."""
+    import nbsymengine as sx
+    x = sx.symbol('x')
+    mat = sx.DenseMatrix(1, 2, [x, sx.integer(1)])
+    with pytest.raises(RuntimeError):
+        mat.to_numpy()
 
 
 # ---------------------------------------------------------------------------

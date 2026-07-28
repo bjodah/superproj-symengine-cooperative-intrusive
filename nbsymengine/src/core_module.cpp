@@ -41,6 +41,7 @@
 #include <symengine/series.h>
 #include <symengine/real_double.h>
 #include <symengine/matrix.h>
+#include <symengine/eval_double.h>
 #include <sstream>
 #include <thread>
 #include <vector>
@@ -70,6 +71,35 @@ struct NonSquareMatrixError_ : std::runtime_error {
 struct ShapeError_ : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
+
+// Helper: hand a freshly allocated double buffer over to NumPy.  The capsule
+// deleter releases the buffer once the ndarray (and any view of it) dies.
+static nb::ndarray<nb::numpy, double> own_double_buffer(double *data, size_t ndim,
+                                                        const size_t *shape) {
+    nb::capsule owner(data, [](void *p) noexcept {
+        delete[] static_cast<double *>(p);
+    });
+    return nb::ndarray<nb::numpy, double>(data, ndim, shape, owner);
+}
+
+// Helper: numeric (float64) copy of a DenseMatrix, shape (nrows, ncols).
+// Non-numeric entries make SymEngine::eval_double throw, which the registered
+// exception translator turns into a Python error.
+static nb::ndarray<nb::numpy, double> dense_matrix_to_numpy(const DenseMatrix &mat) {
+    const unsigned rows = mat.nrows();
+    const unsigned cols = mat.ncols();
+    const size_t n = (size_t)rows * (size_t)cols;
+    std::unique_ptr<double[]> buf(new double[n ? n : 1]);
+    for (unsigned i = 0; i < rows; ++i) {
+        for (unsigned j = 0; j < cols; ++j) {
+            auto elem = mat.get(i, j);
+            buf[(size_t)i * cols + j] =
+                elem.is_null() ? 0.0 : SymEngine::eval_double(*elem);
+        }
+    }
+    const size_t shape[2] = { (size_t)rows, (size_t)cols };
+    return own_double_buffer(buf.release(), 2, shape);
+}
 
 class PyLambdaRealDouble {
     LambdaRealDoubleVisitor visitor_;
@@ -140,6 +170,92 @@ public:
     }
 };
 #endif
+
+// --- Shared ndarray API for the native lambdify visitors -------------------
+//
+// Both PyLambdaRealDouble and PyLLVMDouble expose n_inputs()/n_outputs() and
+// call(out, inp), so the broadcasting ndarray entry points are bound once via
+// these templates.
+
+// Number of broadcast rows implied by *inp* (1-D => 1, 2-D => shape[0]).
+template <typename Cls>
+static size_t lambdify_nbroadcast(const Cls &self,
+                                  const nb::ndarray<const double, nb::c_contig> &inp) {
+    const size_t n_in = self.n_inputs();
+    if (inp.ndim() == 1) {
+        if ((size_t)inp.shape(0) != n_in)
+            throw nb::value_error(
+                ("Expected " + std::to_string(n_in) + " input values, got " +
+                 std::to_string(inp.shape(0))).c_str());
+        return 1;
+    }
+    if (inp.ndim() == 2) {
+        if ((size_t)inp.shape(1) != n_in)
+            throw nb::value_error(
+                ("C order implies last dim == " + std::to_string(n_in) +
+                 " (number of inputs), got " + std::to_string(inp.shape(1))).c_str());
+        return (size_t)inp.shape(0);
+    }
+    throw nb::value_error("Input array must be 1-D or 2-D");
+}
+
+// Evaluate *m* consecutive input rows into *out*; GIL released when m > 1.
+template <typename Cls>
+static void lambdify_eval_rows(Cls &self, double *out, const double *inp, size_t m) {
+    const size_t n_in = self.n_inputs();
+    const size_t n_out = self.n_outputs();
+    try {
+        if (m == 1) {
+            self.call(out, inp);
+        } else {
+            nb::gil_scoped_release release;
+            for (size_t i = 0; i < m; ++i)
+                self.call(out + i * n_out, inp + i * n_in);
+        }
+    } catch (const std::exception &e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        throw nb::python_error();
+    }
+}
+
+template <typename Cls>
+static void bind_lambdify_ndarray_api(nb::class_<Cls> &cls) {
+    cls.def("call_alloc", [](Cls &self,
+                             nb::ndarray<const double, nb::c_contig> inp) {
+        const size_t m = lambdify_nbroadcast(self, inp);
+        const size_t n_out = self.n_outputs();
+        const size_t n = m * n_out;
+        std::unique_ptr<double[]> buf(new double[n ? n : 1]);
+        lambdify_eval_rows(self, buf.get(), inp.data(), m);
+        size_t shape[2];
+        size_t ndim;
+        if (inp.ndim() == 1) {
+            ndim = 1;
+            shape[0] = n_out;
+        } else {
+            ndim = 2;
+            shape[0] = m;
+            shape[1] = n_out;
+        }
+        return own_double_buffer(buf.release(), ndim, shape);
+    }, nb::arg("inp"));
+
+    cls.def("call_into", [](Cls &self,
+                            nb::ndarray<const double, nb::c_contig> inp,
+                            nb::ndarray<double, nb::c_contig> out) {
+        const size_t m = lambdify_nbroadcast(self, inp);
+        const size_t n_out = self.n_outputs();
+        size_t out_size = 1;
+        for (size_t i = 0; i < out.ndim(); ++i)
+            out_size *= (size_t)out.shape(i);
+        if (out_size != m * n_out)
+            throw nb::value_error(
+                ("Expected " + std::to_string(m * n_out) +
+                 " output slots, got " + std::to_string(out_size)).c_str());
+        lambdify_eval_rows(self, out.data(), inp.data(), m);
+        // .noconvert(): never let nanobind silently fill a temporary copy.
+    }, nb::arg("inp"), nb::arg("out").noconvert());
+}
 
 static void register_singletons() {
     mcomm::seed_common_singletons(g_singletons);
@@ -490,6 +606,14 @@ NB_MODULE(_core, m) {
                 for (unsigned j = 0; j < cols; ++j)
                     mat.set(i, j, SymEngine::real_double(data[i * cols + j]));
         }, nb::arg("arr"))
+        .def("to_numpy", [](const DenseMatrix &mat) {
+            return dense_matrix_to_numpy(mat);
+        })
+        .def("__array__", [](const DenseMatrix &mat, nb::handle dtype, nb::handle copy) {
+            (void)dtype;
+            (void)copy;
+            return dense_matrix_to_numpy(mat);
+        }, nb::arg("dtype") = nb::none(), nb::arg("copy") = nb::none())
         .def("resize", &DenseMatrix::resize, nb::arg("i"), nb::arg("j"))
         .def("as_vec_basic", &DenseMatrix::as_vec_basic)
         .def("is_lower", &DenseMatrix::is_lower)
@@ -897,7 +1021,7 @@ NB_MODULE(_core, m) {
         }, nullptr);
 
     // --- Phase 21: Native lambda-double evaluator ---
-    nb::class_<PyLambdaRealDouble>(m, "_LambdaRealDouble")
+    auto pyClassLambdaRealDouble = nb::class_<PyLambdaRealDouble>(m, "_LambdaRealDouble")
         .def("__init__", [](PyLambdaRealDouble *self,
                             const std::vector<RCP<const Basic>> &inputs,
                             const std::vector<RCP<const Basic>> &outputs,
@@ -943,9 +1067,10 @@ NB_MODULE(_core, m) {
             }
             return out;
         }, nb::arg("inp"));
+    bind_lambdify_ndarray_api(pyClassLambdaRealDouble);
 
 #ifdef HAVE_SYMENGINE_LLVM
-    nb::class_<PyLLVMDouble>(m, "_LLVMDouble")
+    auto pyClassLLVMDouble = nb::class_<PyLLVMDouble>(m, "_LLVMDouble")
         .def("__init__", [](PyLLVMDouble *self,
                             const std::vector<RCP<const Basic>> &inputs,
                             const std::vector<RCP<const Basic>> &outputs,
@@ -1004,6 +1129,7 @@ NB_MODULE(_core, m) {
             const std::string &s = self.dumps();
             return nb::bytes(s.data(), s.size());
         });
+    bind_lambdify_ndarray_api(pyClassLLVMDouble);
 #endif
 
     // --- Generated binding code (from litgen) ---
