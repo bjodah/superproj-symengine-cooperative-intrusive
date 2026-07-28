@@ -1,12 +1,16 @@
 cmake_minimum_required(VERSION 3.18)
 
-if (NOT SYMENGINE_RCP_BACKEND STREQUAL "symengine")
+if (SYMENGINE_RCP_BACKEND STREQUAL "symengine")
+    if (NOT WITH_SYMENGINE_THREAD_SAFE)
+        message(FATAL_ERROR
+            "BUILD_JAVA_JNI with SYMENGINE_RCP_BACKEND=symengine requires WITH_SYMENGINE_THREAD_SAFE=ON for Cleaner threads")
+    endif ()
+elseif (NOT SYMENGINE_RCP_BACKEND STREQUAL "cooperative_intrusive")
+    # cooperative_intrusive is fine without hooks: its counter is atomic and
+    # Java never calls cooperative_intrusive_init(), so every object stays in
+    # C++-owned integer-count mode.
     message(FATAL_ERROR
-        "BUILD_JAVA_JNI requires SYMENGINE_RCP_BACKEND=symengine; Java uses ordinary RCP handles")
-endif ()
-if (NOT WITH_SYMENGINE_THREAD_SAFE)
-    message(FATAL_ERROR
-        "BUILD_JAVA_JNI requires WITH_SYMENGINE_THREAD_SAFE=ON for Cleaner threads")
+        "BUILD_JAVA_JNI requires SYMENGINE_RCP_BACKEND=symengine or cooperative_intrusive")
 endif ()
 
 find_package(Java 21 REQUIRED COMPONENTS Development)

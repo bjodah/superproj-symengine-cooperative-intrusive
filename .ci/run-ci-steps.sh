@@ -107,9 +107,11 @@ env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-06-build-and-test-php.sh" /tmp/bld
 echo "=== 10. Swift package build and tests ==="
 env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-07-build-and-test-swift.sh" /tmp/bld-se-swift /tmp/bld-swift-package
 
-echo "=== 11. Java JNI build and tests (ordinary RCP) ==="
+echo "=== 11. Java JNI build and tests (shared cooperative build) ==="
+# Reuses the nbsymengine lane's superproject build directory: the Java targets
+# are switched on there, so no second SymEngine core is compiled for Java.
 ci_use_java_toolchain
-env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-08-build-and-test-java.sh" /tmp/bld-java-debug
+env SYMENGINE_VARIANT=debug "${SCRIPT_DIR}/ci-08-build-and-test-java.sh" /tmp/bld-nbse-debug
 
 # --- ASAN Python Lane Execution ---
 if [[ "${RUN_ASAN}" == "yes" ]]; then

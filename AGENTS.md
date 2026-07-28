@@ -13,7 +13,7 @@ This is a super-project around SymEngine.
 - `./symengine.pl/`: A wrapper for Perl using `symengine_cooperative_intrusive_counter`.
 - `./symengine.php/`: A wrapper for PHP using `symengine_cooperative_intrusive_counter`.
 - `./symengine.swift/`: A wrapper for swift using `symengine_cooperative_intrusive_counter`.
-- `./symengine.java/`: A wrapper for Java that is **not using** `symengine_cooperative_intrusive_counter`. This package should still benefit from the "codegen first" principle to bindings generation taken in this repo.
+- `./symengine.java/`: A wrapper for Java that **never hooks into** the `symengine_cooperative_intrusive_counter` incref/decref facilities (the JVM has no reference counts to cooperate with). It builds against either RCP backend; CI links it against the same cooperative-intrusive build as the other wrappers (objects stay in C++-owned integer-count mode, which is atomic). This package should still benefit from the "codegen first" principle to bindings generation taken in this repo.
 
 ## Misc
 

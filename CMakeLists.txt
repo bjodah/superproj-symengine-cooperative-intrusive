@@ -30,16 +30,22 @@ add_subdirectory(symengine)
 
 # --- Java JNI bindings (symengine.java) ------------------------------------
 option(BUILD_JAVA_JNI
-       "Build Java JNI bindings (requires the ordinary thread-safe symengine RCP backend)" OFF)
+       "Build Java JNI bindings (ordinary thread-safe RCP or cooperative_intrusive backend)" OFF)
 
 if (BUILD_JAVA_JNI)
-    if (NOT SYMENGINE_RCP_BACKEND STREQUAL "symengine")
+    if (SYMENGINE_RCP_BACKEND STREQUAL "symengine")
+        # Cleaner actions decref concurrently with application threads, so the
+        # ordinary backend's plain refcount must be made atomic.
+        if (NOT WITH_SYMENGINE_THREAD_SAFE)
+            message(FATAL_ERROR
+                "BUILD_JAVA_JNI with SYMENGINE_RCP_BACKEND=symengine requires WITH_SYMENGINE_THREAD_SAFE=ON")
+        endif ()
+    elseif (NOT SYMENGINE_RCP_BACKEND STREQUAL "cooperative_intrusive")
+        # The cooperative-intrusive counter is unconditionally atomic (CAS),
+        # and the Java wrapper never registers incref/decref hooks, so objects
+        # stay in C++-owned integer-count mode.
         message(FATAL_ERROR
-            "BUILD_JAVA_JNI requires SYMENGINE_RCP_BACKEND=symengine")
-    endif ()
-    if (NOT WITH_SYMENGINE_THREAD_SAFE)
-        message(FATAL_ERROR
-            "BUILD_JAVA_JNI requires WITH_SYMENGINE_THREAD_SAFE=ON")
+            "BUILD_JAVA_JNI requires SYMENGINE_RCP_BACKEND=symengine or cooperative_intrusive")
     endif ()
     add_subdirectory(symengine.java)
 endif ()
