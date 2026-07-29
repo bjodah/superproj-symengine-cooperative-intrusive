@@ -7,10 +7,13 @@ Handle allocation, release, and exception translation intentionally live in
 from __future__ import annotations
 
 from .model import BindingSpec, Function
-from .render_common import functions_for_language, header
+from .render_common import cpp_call, functions_for_language, header
 
 
-SUPPORTED_FAMILIES = frozenset(("singleton", "unary_basic", "binary_basic"))
+SUPPORTED_FAMILIES = frozenset((
+    "singleton", "unary_basic", "binary_basic", "binary_boolean",
+    "integer_unary", "integer_binary",
+))
 
 
 def java_functions(spec: BindingSpec) -> tuple[Function, ...]:
@@ -104,15 +107,10 @@ def render_java_cpp(spec: BindingSpec) -> str:
             "{",
             "    try {",
         ])
-        if function.behavior == "singleton":
-            assert function.cpp.expression is not None
-            call = function.cpp.expression
-        else:
-            assert function.cpp.name is not None
-            arguments = ", ".join(
-                f"symengine_java::require_handle({argument.name})" for argument in function.arguments
-            )
-            call = f"{function.cpp.name}({arguments})"
+        prologue, call = cpp_call(
+            function, lambda argument: f"symengine_java::require_handle({argument.name})"
+        )
+        lines.extend(prologue)
         lines.extend([
             f"        return symengine_java::make_handle({call});",
             "    } catch (const std::exception &error) {",

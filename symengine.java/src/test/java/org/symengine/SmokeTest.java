@@ -59,5 +59,21 @@ public final class SmokeTest {
         }
         for (Thread worker : threads) worker.join();
         assert SymEngineJNI.liveHandleCount() == baseline;
+
+        // Entries whose C++ arguments are Integer rather than Basic get a
+        // generated guard, because a Java Basic is a type-erased handle.
+        // Rejecting a wrong argument is runtime behavior the shared
+        // string-only schema cannot express.
+        try (Basic symbol = SymEngine.symbol("guard_x");
+             Basic two = SymEngine.integer(2)) {
+            String message = null;
+            try {
+                SymEngine.gcd(symbol, two).close();
+            } catch (SymEngineException expected) {
+                message = expected.getMessage();
+            }
+            assert "gcd(): argument 'a' must be an Integer".equals(message)
+                : "gcd did not reject a non-Integer argument: " + message;
+        }
     }
 }

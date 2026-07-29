@@ -31,6 +31,7 @@ symengine_swift_basic_ref symengine_swift_atan(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_atan2(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_atanh(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_beta(symengine_swift_basic_ref x, symengine_swift_basic_ref y)
+symengine_swift_basic_ref symengine_swift_carmichael(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_catalan()
 symengine_swift_basic_ref symengine_swift_ceiling(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_complex_inf()
@@ -45,23 +46,32 @@ symengine_swift_basic_ref symengine_swift_digamma(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_dirichlet_eta(symengine_swift_basic_ref s)
 symengine_swift_basic_ref symengine_swift_div(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_e()
+symengine_swift_basic_ref symengine_swift_eq(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_erf(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_erfc(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_euler_gamma()
 symengine_swift_basic_ref symengine_swift_floor(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_gamma(symengine_swift_basic_ref a)
+symengine_swift_basic_ref symengine_swift_gcd(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_ge(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_golden_ratio()
+symengine_swift_basic_ref symengine_swift_gt(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_i()
 symengine_swift_basic_ref symengine_swift_inf()
 symengine_swift_basic_ref symengine_swift_lambertw(symengine_swift_basic_ref a)
+symengine_swift_basic_ref symengine_swift_lcm(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_basic_ref symengine_swift_le(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_log(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_loggamma(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_lowergamma(symengine_swift_basic_ref s, symengine_swift_basic_ref x)
+symengine_swift_basic_ref symengine_swift_lt(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_minus_one()
 symengine_swift_basic_ref symengine_swift_mul(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_nan()
+symengine_swift_basic_ref symengine_swift_ne(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_neg(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_neg_inf()
+symengine_swift_basic_ref symengine_swift_nextprime(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_one()
 symengine_swift_basic_ref symengine_swift_pi()
 symengine_swift_basic_ref symengine_swift_polygamma(symengine_swift_basic_ref n, symengine_swift_basic_ref x)
@@ -75,6 +85,7 @@ symengine_swift_basic_ref symengine_swift_sqrt(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_sub(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_tan(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_tanh(symengine_swift_basic_ref a)
+symengine_swift_basic_ref symengine_swift_totient(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_trigamma(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_two()
 symengine_swift_basic_ref symengine_swift_uppergamma(symengine_swift_basic_ref s, symengine_swift_basic_ref x)
@@ -113,6 +124,7 @@ public static func atan(_ a: Basic) throws -> Basic {
 public static func atan2(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func atanh(_ a: Basic) throws -> Basic {
 public static func beta(_ x: Basic, _ y: Basic) throws -> Basic {
+public static func carmichael(_ a: Basic) throws -> Basic {
 public static func catalan() throws -> Basic {
 public static func ceiling(_ a: Basic) throws -> Basic {
 public static func complexInf() throws -> Basic {
@@ -127,23 +139,32 @@ public static func digamma(_ a: Basic) throws -> Basic {
 public static func dirichletEta(_ s: Basic) throws -> Basic {
 public static func divide(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func e() throws -> Basic {
+public static func eq(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func erf(_ a: Basic) throws -> Basic {
 public static func erfc(_ a: Basic) throws -> Basic {
 public static func eulerGamma() throws -> Basic {
 public static func floor(_ a: Basic) throws -> Basic {
 public static func gamma(_ a: Basic) throws -> Basic {
+public static func gcd(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func ge(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func goldenRatio() throws -> Basic {
+public static func gt(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func i() throws -> Basic {
 public static func inf() throws -> Basic {
 public static func lambertw(_ a: Basic) throws -> Basic {
+public static func lcm(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func le(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func log(_ a: Basic) throws -> Basic {
 public static func loggamma(_ a: Basic) throws -> Basic {
 public static func lowergamma(_ s: Basic, _ x: Basic) throws -> Basic {
+public static func lt(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func minusOne() throws -> Basic {
 public static func multiply(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func nan() throws -> Basic {
+public static func ne(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func negate(_ a: Basic) throws -> Basic {
 public static func negInf() throws -> Basic {
+public static func nextprime(_ a: Basic) throws -> Basic {
 public static func one() throws -> Integer {
 public static func pi() throws -> Basic {
 public static func polygamma(_ n: Basic, _ x: Basic) throws -> Basic {
@@ -157,6 +178,7 @@ public static func sqrt(_ a: Basic) throws -> Basic {
 public static func subtract(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func tan(_ a: Basic) throws -> Basic {
 public static func tanh(_ a: Basic) throws -> Basic {
+public static func totient(_ a: Basic) throws -> Basic {
 public static func trigamma(_ a: Basic) throws -> Basic {
 public static func two() throws -> Basic {
 public static func uppergamma(_ s: Basic, _ x: Basic) throws -> Basic {

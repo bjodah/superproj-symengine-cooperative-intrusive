@@ -187,27 +187,40 @@ functions:
   - {<<: *unary, id: trigamma, cpp: {name: SymEngine::trigamma, header: symengine/functions.h}}
   - {<<: *binary, id: uppergamma, cpp: {name: SymEngine::uppergamma, header: symengine/functions.h}, arguments: [{name: s, type: basic}, {name: x, type: basic}]}
   - {<<: *binary, id: lowergamma, cpp: {name: SymEngine::lowergamma, header: symengine/functions.h}, arguments: [{name: s, type: basic}, {name: x, type: basic}]}
-  - &python_boolean
+  # Relational constructors.  These build a symbolic ``Boolean`` expression
+  # ("x < 2", "True"), they do not decide structural equality, so the returned
+  # object is an ordinary expression handle in every wrapper -- exactly what
+  # nanobind hands Python.  ``symengine_eq()`` is PHP's pre-existing structural
+  # predicate returning bool, and PHP function names are case-insensitive (so
+  # ``symengine_Eq`` is not a distinct name); hence the one name override.
+  - &boolean
     id: eq
     cpp: {name: SymEngine::Eq, header: symengine/logic.h}
     arguments: [{name: a, type: basic}, {name: b, type: basic}]
     returns: boolean
     behavior: binary_boolean
-    expose: [python]
+    expose: [python, perl, php, swift, java]
     implementation: generated
-    names: {python: Eq}
-  - {<<: *python_boolean, id: ne, cpp: {name: SymEngine::Ne, header: symengine/logic.h}, names: {python: Ne}}
-  - {<<: *python_boolean, id: ge, cpp: {name: SymEngine::Ge, header: symengine/logic.h}, names: {python: Ge}}
-  - {<<: *python_boolean, id: gt, cpp: {name: SymEngine::Gt, header: symengine/logic.h}, names: {python: Gt}}
-  - {<<: *python_boolean, id: le, cpp: {name: SymEngine::Le, header: symengine/logic.h}, names: {python: Le}}
-  - {<<: *python_boolean, id: lt, cpp: {name: SymEngine::Lt, header: symengine/logic.h}, names: {python: Lt}}
+    names: {python: Eq, php: symengine_eq_relational}
+  - {<<: *boolean, id: ne, cpp: {name: SymEngine::Ne, header: symengine/logic.h}, names: {python: Ne}}
+  - {<<: *boolean, id: ge, cpp: {name: SymEngine::Ge, header: symengine/logic.h}, names: {python: Ge}}
+  - {<<: *boolean, id: gt, cpp: {name: SymEngine::Gt, header: symengine/logic.h}, names: {python: Gt}}
+  - {<<: *boolean, id: le, cpp: {name: SymEngine::Le, header: symengine/logic.h}, names: {python: Le}}
+  - {<<: *boolean, id: lt, cpp: {name: SymEngine::Lt, header: symengine/logic.h}, names: {python: Lt}}
+
+  # Number-theory entries taking ``Integer`` rather than ``Basic``.  nanobind
+  # downcasts these from its own type system; the four type-erased wrappers get
+  # a generated ``is_a<Integer>`` guard plus ``rcp_static_cast`` (see
+  # ``render_common.cpp_call``) which reports a wrong argument type the
+  # language's own way.  ``adapter.deref`` picks the SymEngine overload:
+  # ``const Integer &`` (true) or ``const RCP<const Integer> &`` (false).
   - &integer_unary
     id: nextprime
     cpp: {name: SymEngine::nextprime, header: symengine/ntheory.h}
     arguments: [{name: a, type: integer}]
     returns: basic
     behavior: integer_unary
-    expose: [python]
+    expose: [python, perl, php, swift, java]
     implementation: generated
     adapter: {deref: true}
   - {<<: *integer_unary, id: totient, cpp: {name: SymEngine::totient, header: symengine/ntheory.h}, adapter: {deref: false}}
@@ -218,7 +231,7 @@ functions:
     arguments: [{name: a, type: integer}, {name: b, type: integer}]
     returns: basic
     behavior: integer_binary
-    expose: [python]
+    expose: [python, perl, php, swift, java]
     implementation: generated
     adapter: {deref: true}
   - {<<: *integer_binary, id: lcm, cpp: {name: SymEngine::lcm, header: symengine/ntheory.h}}

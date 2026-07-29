@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from .model import BindingSpec, Function
-from .render_common import functions_for_language, header
+from .render_common import cpp_call, functions_for_language, header
 
 
-SUPPORTED_FAMILIES = frozenset(("singleton", "unary_basic", "binary_basic"))
+SUPPORTED_FAMILIES = frozenset((
+    "singleton", "unary_basic", "binary_basic", "binary_boolean",
+    "integer_unary", "integer_binary",
+))
 
 
 def swift_functions(spec: BindingSpec) -> tuple[Function, ...]:
@@ -28,20 +31,16 @@ def render_swift_cpp(spec: BindingSpec) -> str:
             f"symengine_swift_basic_ref {argument.name}" for argument in function.arguments
         )
         lines.extend(["", f"symengine_swift_basic_ref {name}({parameters})", "{"])
+        prologue, call = cpp_call(
+            function, lambda argument: f"SymEngine::rcp(require_basic({argument.name}))"
+        )
         if function.behavior == "singleton":
-            expression = function.cpp.expression
-            assert expression is not None
-            lines.append(f"    return make_result([] {{ return {expression}; }});")
+            lines.append(f"    return make_result([] {{ return {call}; }});")
         else:
-            cpp_name = function.cpp.name
-            assert cpp_name is not None
-            call_arguments = ", ".join(
-                f"SymEngine::rcp(require_basic({argument.name}))"
-                for argument in function.arguments
-            )
+            lines.append("    return make_result([&] {")
+            lines.extend(prologue)
             lines.extend([
-                "    return make_result([&] {",
-                f"        return {cpp_name}({call_arguments});",
+                f"        return {call};",
                 "    });",
             ])
         lines.append("}")

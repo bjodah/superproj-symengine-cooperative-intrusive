@@ -190,3 +190,77 @@ cases:
       y: {integer: 1}
     call: {function: atan2, arguments: [x, y]}
     expect: {string: "(1/4)*pi"}
+
+  # Relational constructors.  One case per entry, covering both results the
+  # family can produce: an unevaluated symbolic relation and a decided
+  # ``True``.  ``Ge``/``Gt`` canonicalize to their mirrored form, which is why
+  # ``ge(x, 2)`` prints "2 <= x".  Every wrapper returns the ordinary
+  # expression handle, so the shared string expectation applies unchanged.
+  - id: eq_equal_integers
+    arrange:
+      x: {integer: 2}
+      y: {integer: 2}
+    call: {function: eq, arguments: [x, y]}
+    expect: {string: "True"}
+  - id: ne_distinct_integers
+    arrange:
+      x: {integer: 2}
+      y: {integer: 3}
+    call: {function: ne, arguments: [x, y]}
+    expect: {string: "True"}
+  - id: lt_symbol_integer
+    arrange:
+      x: {symbol: x}
+      y: {integer: 2}
+    call: {function: lt, arguments: [x, y]}
+    expect: {string: "x < 2"}
+  - id: le_symbols
+    arrange:
+      x: {symbol: x}
+      y: {symbol: y}
+    call: {function: le, arguments: [x, y]}
+    expect: {string: "x <= y"}
+  - id: ge_symbol_integer
+    arrange:
+      x: {symbol: x}
+      y: {integer: 2}
+    call: {function: ge, arguments: [x, y]}
+    expect: {string: "2 <= x"}
+  - id: gt_integers
+    arrange:
+      x: {integer: 3}
+      y: {integer: 2}
+    call: {function: gt, arguments: [x, y]}
+    expect: {string: "True"}
+
+  # Number-theory entries whose C++ arguments are ``Integer`` rather than
+  # ``Basic``.  These exercise the generated downcast in the four type-erased
+  # wrappers on the happy path; rejecting a non-Integer argument is runtime
+  # behavior and stays a hand-written negative test in each native suite.
+  - id: gcd_integers
+    arrange:
+      a: {integer: 12}
+      b: {integer: 18}
+    call: {function: gcd, arguments: [a, b]}
+    expect: {string: "6"}
+  - id: lcm_integers
+    arrange:
+      a: {integer: 4}
+      b: {integer: 6}
+    call: {function: lcm, arguments: [a, b]}
+    expect: {string: "12"}
+  - id: nextprime_integer
+    arrange:
+      a: {integer: 7}
+    call: {function: nextprime, arguments: [a]}
+    expect: {string: "11"}
+  - id: totient_integer
+    arrange:
+      a: {integer: 12}
+    call: {function: totient, arguments: [a]}
+    expect: {string: "4"}
+  - id: carmichael_integer
+    arrange:
+      a: {integer: 12}
+    call: {function: carmichael, arguments: [a]}
+    expect: {string: "2"}

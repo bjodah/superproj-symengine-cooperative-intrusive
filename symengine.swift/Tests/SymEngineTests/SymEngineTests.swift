@@ -67,6 +67,22 @@ final class SymEngineTests: XCTestCase {
         XCTAssertFalse(try x1.isEqual(to: y))
     }
 
+    // Entries whose C++ arguments are Integer rather than Basic get a
+    // generated guard, because the C bridge passes type-erased Basic
+    // references.  Rejecting a wrong argument is runtime behavior the shared
+    // string-only schema cannot express.
+    func testTypedArgumentGuardRejectsNonInteger() throws {
+        let x = try SymEngine.symbol("guard_x")
+        let two = try SymEngine.integer(2)
+
+        XCTAssertThrowsError(try SymEngine.gcd(x, two)) { error in
+            XCTAssertEqual(
+                (error as? SymEngineError)?.message,
+                "gcd(): argument 'a' must be an Integer"
+            )
+        }
+    }
+
     func testVersionIsAvailable() {
         XCTAssertFalse(SymEngine.version.isEmpty)
     }

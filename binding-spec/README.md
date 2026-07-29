@@ -25,7 +25,10 @@ Names default to the ID for Python and Perl, `symengine_` plus the ID for PHP,
 and lower camel case for Swift and Java. Add `names.<language>` only for a real
 public API divergence. Validation rejects duplicate resolved names and reserved
 words unless the latter has an explicit name override (Perl's `sub` is the
-intentional example).
+intentional example). An override is also how an entry steps around a name a
+wrapper's hand-written runtime already owns: `eq` builds a symbolic `Eq`
+relation, while PHP's pre-existing `symengine_eq()` is a structural predicate
+returning `bool`, so that entry resolves to `symengine_eq_relational` there.
 
 Do not add raw C++ snippets, templates, ownership operations, language runtime
 pointers, or exception policy to this file. Those remain renderer/runtime

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from .model import BindingSpec, Function
-from .render_common import functions_for_language, header
+from .render_common import cpp_call, functions_for_language, header
 
 
-SUPPORTED_FAMILIES = frozenset(("singleton", "unary_basic", "binary_basic"))
+SUPPORTED_FAMILIES = frozenset((
+    "singleton", "unary_basic", "binary_basic", "binary_boolean",
+    "integer_unary", "integer_binary",
+))
 
 
 def perl_functions(spec: BindingSpec) -> tuple[Function, ...]:
@@ -25,17 +28,10 @@ def render_perl_xs_inc(spec: BindingSpec) -> str:
             lines.append(f"    SV *{argument.name}")
         lines.append("  CODE:")
         lines.append("    try {")
-        if function.behavior == "singleton":
-            call = function.cpp.expression
-            assert call is not None
-        else:
-            name = function.cpp.name
-            assert name is not None
-            arguments = ", ".join(
-                f"SymEnginePerl::unwrap_basic({argument.name})"
-                for argument in function.arguments
-            )
-            call = f"{name}({arguments})"
+        prologue, call = cpp_call(
+            function, lambda argument: f"SymEnginePerl::unwrap_basic({argument.name})"
+        )
+        lines.extend(prologue)
         lines.extend([
             f"        RETVAL = SymEnginePerl::wrap_basic_perl_owned({call});",
             "    } catch (...) {",

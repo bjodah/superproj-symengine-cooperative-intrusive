@@ -19,4 +19,11 @@ is("$two", '2', 'integer');
 ok($x == SymEngine::symbol('phase0_x'), 'structural equality');
 ok(!($x == SymEngine::symbol('phase0_y')), 'structural inequality');
 
+# Entries whose C++ arguments are Integer rather than Basic get a generated
+# guard, because a Perl SymEngine::Basic is type-erased.  Rejecting a wrong
+# argument is runtime behavior the shared string-only schema cannot express.
+eval { SymEngine::gcd($x, $two); 1 };
+like($@, qr/^gcd\(\): argument 'a' must be an Integer/,
+     'gcd croaks on a non-Integer argument');
+
 done_testing;

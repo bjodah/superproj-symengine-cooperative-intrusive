@@ -20,8 +20,11 @@
 #include <symengine/nan.h>
 #include <symengine/add.h>
 #include <symengine/functions.h>
+#include <symengine/logic.h>
 #include <symengine/mul.h>
+#include <symengine/ntheory.h>
 #include <symengine/pow.h>
+#include <symengine/symengine_exception.h>
 #include <symengine/symengine_rcp.h>
 
 #if !defined(WITH_SYMENGINE_COOPERATIVE_INTRUSIVE_RCP)

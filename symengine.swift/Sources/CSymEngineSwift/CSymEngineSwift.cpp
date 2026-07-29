@@ -4,7 +4,9 @@
 #include <symengine/constants.h>
 #include <symengine/functions.h>
 #include <symengine/integer.h>
+#include <symengine/logic.h>
 #include <symengine/mul.h>
+#include <symengine/ntheory.h>
 #include <symengine/pow.h>
 #include <symengine/symbol.h>
 #include <symengine/symengine_exception.h>

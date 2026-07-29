@@ -15,9 +15,20 @@ echo symengine_str($x), "\n";
 echo symengine_str($two), "\n";
 var_export(symengine_eq($x, symengine_symbol('phase0_x'))); echo "\n";
 var_export(symengine_eq($x, symengine_symbol('phase0_y'))); echo "\n";
+
+// Entries whose C++ arguments are Integer rather than Basic get a generated
+// guard, because a SymEngine\Basic zval is type-erased.  Rejecting a wrong
+// argument is runtime behavior the shared string-only schema cannot express.
+try {
+    symengine_gcd($x, $two);
+    echo "gcd accepted a non-Integer argument\n";
+} catch (Exception $error) {
+    echo $error->getMessage(), "\n";
+}
 ?>
 --EXPECT--
 phase0_x
 2
 true
 false
+gcd(): argument 'a' must be an Integer

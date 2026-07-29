@@ -197,9 +197,12 @@ def test_coverage_is_complete_and_java_generates_the_common_surface() -> None:
     assert all(status in {"generated", "manual", "not exposed"}
                for _, _, status in rows)
     java_status = {entry: status for entry, language, status in rows if language == "java"}
-    for common in ("add", "sub", "mul", "div", "pow", "neg", "sin", "zero", "one", "pi"):
+    for common in ("add", "sub", "mul", "div", "pow", "neg", "sin", "zero", "one", "pi",
+                   "eq", "lt", "gcd", "nextprime", "totient"):
         assert java_status[common] == "generated"
-    assert java_status["nextprime"] == "not exposed"
+    # Families no renderer but Python supports yet.
+    assert java_status["mod_inverse"] == "not exposed"
+    assert java_status["prime_factors"] == "not exposed"
     assert "| `add` | perl | generated |" in render_coverage_report(spec)
 
 
@@ -316,7 +319,7 @@ def test_check_command_end_to_end(capsys: pytest.CaptureFixture[str]) -> None:
 def test_committed_test_cases_validate_against_the_spec() -> None:
     spec = validate_spec(API_PATH)
     suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
-    assert len(suite.cases) == 35
+    assert len(suite.cases) == 46
     ids = {case.id for case in suite.cases}
     assert ids == {
         "add_integers", "sub_integers", "mul_integers", "div_integers",
@@ -329,6 +332,10 @@ def test_committed_test_cases_validate_against_the_spec() -> None:
         "neg_inf_constant", "complex_inf_constant", "nan_constant",
         "sqrt_integer", "log_symbol", "abs_negative_integer", "cosh_symbol",
         "asin_symbol", "gamma_integer", "zeta_integer", "atan2_integers",
+        "eq_equal_integers", "ne_distinct_integers", "lt_symbol_integer",
+        "le_symbols", "ge_symbol_integer", "gt_integers",
+        "gcd_integers", "lcm_integers", "nextprime_integer",
+        "totient_integer", "carmichael_integer",
     }
 
 
@@ -535,6 +542,99 @@ def test_functions_for_language_names_the_language_of_an_unsupported_behavior() 
         )
     # Without a supported set nothing is rejected; Python reports at render time.
     assert unsupported in render_common.functions_for_language(mutated, "python")
+
+
+def test_every_non_python_renderer_supports_the_same_families() -> None:
+    """Nothing forces the four sets to agree, but a divergence should be a
+    deliberate edit rather than a renderer someone forgot to widen."""
+    for families in (PERL_FAMILIES, PHP_FAMILIES, SWIFT_FAMILIES, JAVA_FAMILIES):
+        assert families == frozenset((
+            "singleton", "unary_basic", "binary_basic", "binary_boolean",
+            "integer_unary", "integer_binary",
+        ))
+        # Still Python-only; they need a documented adapter policy first.
+        assert "status_optional_unary" not in families
+        assert "list_integer_to_basic" not in families
+
+
+def test_cpp_call_passes_basic_arguments_straight_through() -> None:
+    """``binary_boolean`` is call-compatible with ``binary_basic``: the result
+    is an ordinary expression handle, so no wrapper needs a special path."""
+    spec = validate_spec(API_PATH)
+    equality = next(function for function in spec.functions if function.id == "eq")
+    prologue, call = render_common.cpp_call(equality, lambda argument: f"unwrap({argument.name})")
+    assert prologue == []
+    assert call == "SymEngine::Eq(unwrap(a), unwrap(b))"
+
+    constant = next(function for function in spec.functions if function.id == "pi")
+    assert render_common.cpp_call(constant, lambda argument: "unused") == ([], "SymEngine::pi")
+
+
+def test_cpp_call_guards_every_integer_argument_and_honours_deref() -> None:
+    spec = validate_spec(API_PATH)
+    gcd = next(function for function in spec.functions if function.id == "gcd")
+    prologue, call = render_common.cpp_call(
+        gcd, lambda argument: f"unwrap({argument.name})", indent="  "
+    )
+    assert call == "SymEngine::gcd(*a_integer, *b_integer)"
+    assert prologue == [
+        "  SymEngine::RCP<const SymEngine::Basic> a_basic = unwrap(a);",
+        "  if (!SymEngine::is_a<SymEngine::Integer>(*a_basic)) {",
+        '      throw SymEngine::SymEngineException("gcd(): argument \'a\' must be an Integer");',
+        "  }",
+        "  SymEngine::RCP<const SymEngine::Integer> a_integer",
+        "      = SymEngine::rcp_static_cast<const SymEngine::Integer>(a_basic);",
+        "  SymEngine::RCP<const SymEngine::Basic> b_basic = unwrap(b);",
+        "  if (!SymEngine::is_a<SymEngine::Integer>(*b_basic)) {",
+        '      throw SymEngine::SymEngineException("gcd(): argument \'b\' must be an Integer");',
+        "  }",
+        "  SymEngine::RCP<const SymEngine::Integer> b_integer",
+        "      = SymEngine::rcp_static_cast<const SymEngine::Integer>(b_basic);",
+    ]
+
+    # ``totient`` takes ``const RCP<const Integer> &``, so it must not deref.
+    totient = next(function for function in spec.functions if function.id == "totient")
+    assert render_common.cpp_call(totient, lambda argument: "unwrap")[1] == (
+        "SymEngine::totient(a_integer)"
+    )
+
+
+def test_every_wrapper_guards_typed_arguments_and_reports_it_its_own_way() -> None:
+    """One generated guard per language, each ending in that runtime's error
+    channel: croak, zend_throw_exception, last_error, SymEngineException."""
+    spec = validate_spec(API_PATH)
+    guard = 'throw SymEngine::SymEngineException("nextprime(): argument \'a\' must be an Integer");'
+    for renderer, unwrap, reporter in (
+        (render_perl_xs_inc, "SymEnginePerl::unwrap_basic(a)", "croak_current_exception();"),
+        (render_php_inc, "symengine_unwrap_basic(a)", "symengine_throw_cpp_exception(error);"),
+        (render_swift_cpp, "SymEngine::rcp(require_basic(a))", "make_result"),
+        (render_java_cpp, "symengine_java::require_handle(a)", "symengine_java::throw_exception"),
+    ):
+        rendered = renderer(spec)
+        assert guard in rendered
+        assert f"SymEngine::RCP<const SymEngine::Basic> a_basic = {unwrap};" in rendered
+        assert "SymEngine::rcp_static_cast<const SymEngine::Integer>(a_basic);" in rendered
+        assert reporter in rendered
+        # Basic-only entries keep their previous single-expression shape.
+        assert "SymEngine::Eq(" in rendered
+        assert "Eq(a_basic" not in rendered
+
+
+def test_relational_entries_reach_every_public_surface_under_documented_names() -> None:
+    spec = validate_spec(API_PATH)
+    relational = next(function for function in spec.functions if function.id == "eq")
+    assert relational.public_name("python") == "Eq"
+    assert relational.public_name("perl") == "eq"
+    assert relational.public_name("swift") == "eq"
+    assert relational.public_name("java") == "eq"
+    # PHP already owns symengine_eq() as the structural predicate and its
+    # function names are case-insensitive, so this one entry is renamed.
+    assert relational.public_name("php") == "symengine_eq_relational"
+    assert "PHP_FUNCTION(symengine_eq_relational)" in render_php_inc(spec)
+    assert "function symengine_eq_relational(" in render_php_stub(spec)
+    assert "static func lt(_ a: Basic, _ b: Basic) throws -> Basic {" in render_swift_api(spec)
+    assert "static native long gcd(long a, long b);" in render_java_jni(spec)
+    assert "public static Basic carmichael(Basic a) {" in render_java_api(spec)
 
 
 def test_header_banner_is_shared_and_comment_marker_aware() -> None:

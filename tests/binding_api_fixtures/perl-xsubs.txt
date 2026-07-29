@@ -24,6 +24,7 @@ atan(a) -> SV *
 atan2(a, b) -> SV *
 atanh(a) -> SV *
 beta(x, y) -> SV *
+carmichael(a) -> SV *
 catalan() -> SV *
 ceiling(a) -> SV *
 complex_inf() -> SV *
@@ -38,23 +39,32 @@ digamma(a) -> SV *
 dirichlet_eta(s) -> SV *
 div(a, b) -> SV *
 e() -> SV *
+eq(a, b) -> SV *
 erf(a) -> SV *
 erfc(a) -> SV *
 euler_gamma() -> SV *
 floor(a) -> SV *
 gamma(a) -> SV *
+gcd(a, b) -> SV *
+ge(a, b) -> SV *
 golden_ratio() -> SV *
+gt(a, b) -> SV *
 i() -> SV *
 inf() -> SV *
 lambertw(a) -> SV *
+lcm(a, b) -> SV *
+le(a, b) -> SV *
 log(a) -> SV *
 loggamma(a) -> SV *
 lowergamma(s, x) -> SV *
+lt(a, b) -> SV *
 minus_one() -> SV *
 mul(a, b) -> SV *
 nan() -> SV *
+ne(a, b) -> SV *
 neg(a) -> SV *
 neg_inf() -> SV *
+nextprime(a) -> SV *
 one() -> SV *
 pi() -> SV *
 polygamma(n, x) -> SV *
@@ -68,6 +78,7 @@ sqrt(a) -> SV *
 sub(a, b) -> SV *
 tan(a) -> SV *
 tanh(a) -> SV *
+totient(a) -> SV *
 trigamma(a) -> SV *
 two() -> SV *
 uppergamma(s, x) -> SV *
