@@ -17,6 +17,7 @@
 
 #include <exception>
 #include <string>
+#include <vector>
 
 static void croak_current_exception()
 {

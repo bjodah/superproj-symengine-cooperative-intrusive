@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from .model import BindingSpec, Function
-from .render_common import header
+from .render_common import RESULT_SHAPES, header
 from .test_cases import ArrangeValue, TestCase, TestCaseSuite
 
 
@@ -109,7 +109,13 @@ def _python_case(profile: LanguageProfile, case: TestCase, function: Function) -
         lines.append(f"    {name} = {profile.arrange(argument)}")
     arguments = ", ".join(case.call.arguments)
     lines.append(f"    result = sx.{function.public_name('python')}({arguments})")
-    lines.append(f"    assert sx.str(result) == {profile.string_literal(case.expect.string)}")
+    if case.expect.kind == "string":
+        lines.append(f"    assert sx.str(result) == {profile.string_literal(case.expect.string)}")
+    elif case.expect.kind == "none":
+        lines.append("    assert result is None")
+    else:
+        expected = ", ".join(profile.string_literal(item) for item in case.expect.strings)
+        lines.append(f"    assert [sx.str(value) for value in result] == [{expected}]")
     lines.append("")
     return lines
 
@@ -139,10 +145,20 @@ def _perl_case(profile: LanguageProfile, case: TestCase, function: Function) -> 
     for name, argument in sorted(case.arrange.items()):
         lines.append(f"    my ${name} = {profile.arrange(argument)};")
     arguments = ", ".join(f"${name}" for name in case.call.arguments)
-    lines.append(
-        f'    is("" . SymEngine::{function.public_name("perl")}({arguments}), '
-        f'{profile.string_literal(case.expect.string)}, {profile.string_literal(case.id)});'
-    )
+    call = f"SymEngine::{function.public_name('perl')}({arguments})"
+    label = profile.string_literal(case.id)
+    if case.expect.kind == "string":
+        lines.append(
+            f'    is("" . {call}, {profile.string_literal(case.expect.string)}, {label});'
+        )
+    elif case.expect.kind == "none":
+        lines.append(f"    is({call}, undef, {label});")
+    else:
+        # A list entry returns one reference to an array of wrapped handles.
+        expected = ", ".join(profile.string_literal(item) for item in case.expect.strings)
+        lines.append(
+            f'    is_deeply([map {{ "" . $_ }} @{{ {call} }}], [{expected}], {label});'
+        )
     lines.append("}")
     return lines
 
@@ -177,13 +193,28 @@ def _php_case(profile: LanguageProfile, case: TestCase, function: Function) -> l
     for name, argument in sorted(case.arrange.items()):
         lines.append(f"${name} = {profile.arrange(argument)};")
     arguments = ", ".join(f"${name}" for name in case.call.arguments)
-    lines.append(f'echo symengine_str({function.public_name("php")}({arguments})), "\\n";')
+    call = f'{function.public_name("php")}({arguments})'
+    if case.expect.kind == "string":
+        lines.append(f'echo symengine_str({call}), "\\n";')
+    elif case.expect.kind == "none":
+        lines.append(f"echo ({call} === null ? 'NULL' : 'NOT NULL'), \"\\n\";")
+    else:
+        lines.append(f"echo implode(',', array_map('symengine_str', {call})), \"\\n\";")
     return lines
+
+
+def _php_expected(case: TestCase) -> str:
+    """The single stdout line ``_php_case`` prints for this expectation."""
+    if case.expect.kind == "string":
+        return case.expect.string
+    if case.expect.kind == "none":
+        return "NULL"
+    return ",".join(case.expect.strings)
 
 
 def _php_footer(emitted: tuple[TestCase, ...]) -> list[str]:
     # phpt compares stdout against --EXPECT--, one line per emitted case.
-    return ["?>", "--EXPECT--", *(case.expect.string for case in emitted)]
+    return ["?>", "--EXPECT--", *(_php_expected(case) for case in emitted)]
 
 
 PHP = LanguageProfile(
@@ -219,8 +250,23 @@ def _swift_case(profile: LanguageProfile, case: TestCase, function: Function) ->
     for name, argument in sorted(case.arrange.items()):
         lines.append(f"        let {name} = {profile.arrange(argument)}")
     arguments = ", ".join(case.call.arguments)
-    lines.append(f"        let result = try SymEngine.{function.public_name('swift')}({arguments})")
-    lines.append(f'        XCTAssertEqual(try result.string(), {profile.string_literal(case.expect.string)})')
+    call = f"SymEngine.{function.public_name('swift')}({arguments})"
+    if case.expect.kind == "string" and RESULT_SHAPES[function.behavior] == "optional":
+        # Swift is the one language where "a value" and "no value" are distinct
+        # static types, so a string expectation on an optional entry unwraps.
+        call = f"XCTUnwrap({call})"
+    lines.append(f"        let result = try {call}")
+    if case.expect.kind == "string":
+        lines.append(
+            f'        XCTAssertEqual(try result.string(), {profile.string_literal(case.expect.string)})'
+        )
+    elif case.expect.kind == "none":
+        lines.append("        XCTAssertNil(result)")
+    else:
+        expected = ", ".join(profile.string_literal(item) for item in case.expect.strings)
+        lines.append(
+            f"        XCTAssertEqual(try result.map {{ try $0.string() }}, [{expected}])"
+        )
     lines.append("    }")
     lines.append("")
     return lines
@@ -259,13 +305,36 @@ def _java_case(profile: LanguageProfile, case: TestCase, function: Function) -> 
         for name, argument in sorted(case.arrange.items())
     ]
     arguments = ", ".join(case.call.arguments)
-    declarations.append(
-        f"Basic result_{case.id} = SymEngine.{function.public_name('java')}({arguments})"
-    )
+    call = f"SymEngine.{function.public_name('java')}({arguments})"
+    failure = f': "case \'{case.id}\' failed";'
+    if case.expect.kind == "string":
+        declarations.append(f"Basic result_{case.id} = {call}")
+        return [
+            "        try (" + "; ".join(declarations) + ") {",
+            f'            assert result_{case.id}.toString().equals({profile.string_literal(case.expect.string)}) '
+            f'{failure}',
+            "        }",
+        ]
+    # A null or an array is not AutoCloseable, so only the arranged arguments
+    # go in the resource list and the call itself moves into the body.
+    opening = "        try (" + "; ".join(declarations) + ") {"
+    if case.expect.kind == "none":
+        return [
+            opening,
+            f"            Basic result_{case.id} = {call};",
+            f"            assert result_{case.id} == null{failure}",
+            "        }",
+        ]
+    joined = profile.string_literal(",".join(case.expect.strings))
     return [
-        "        try (" + "; ".join(declarations) + ") {",
-        f'            assert result_{case.id}.toString().equals({profile.string_literal(case.expect.string)}) '
-        f': "case \'{case.id}\' failed";',
+        opening,
+        f"            Basic[] result_{case.id} = {call};",
+        f"            StringBuilder text_{case.id} = new StringBuilder();",
+        f"            for (Basic item : result_{case.id}) {{",
+        f'                if (text_{case.id}.length() > 0) text_{case.id}.append(",");',
+        f"                text_{case.id}.append(item.toString());",
+        "            }",
+        f"            assert text_{case.id}.toString().equals({joined}){failure}",
         "        }",
     ]
 

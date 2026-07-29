@@ -43,10 +43,16 @@
           "expect": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["string"],
             "properties": {
-              "string": {"type": "string"}
-            }
+              "string": {"type": "string"},
+              "none": {"const": true},
+              "strings": {"type": "array", "items": {"type": "string"}}
+            },
+            "oneOf": [
+              {"required": ["string"]},
+              {"required": ["none"]},
+              {"required": ["strings"]}
+            ]
           }
         }
       }

@@ -138,6 +138,22 @@ func adopt(_ owned: symengine_swift_basic_ref?) throws -> Basic {
     return wrapper
 }
 
+/// Adopts every element of a list result and frees the C buffer that held them.
+/// Generic: the buffer layout is the same for every list-returning entry.
+func adoptList(
+    _ values: UnsafeMutablePointer<symengine_swift_basic_ref?>?,
+    _ count: Int
+) throws -> [Basic] {
+    guard let values else { return [] }
+    defer { symengine_swift_basic_list_free(values) }
+    var result: [Basic] = []
+    result.reserveCapacity(count)
+    for index in 0..<count {
+        result.append(try adopt(values[index]))
+    }
+    return result
+}
+
 public enum SymEngine {
     public static var version: String {
         String(cString: symengine_swift_version())

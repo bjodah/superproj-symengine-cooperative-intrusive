@@ -20,6 +20,7 @@
 #include <mutex>
 #include <new>
 #include <string>
+#include <vector>
 
 #if !defined(WITH_SYMENGINE_COOPERATIVE_INTRUSIVE_RCP)
 #error "symengine.swift requires SYMENGINE_RCP_BACKEND=cooperative_intrusive"
@@ -101,6 +102,64 @@ symengine_swift_basic_ref make_result(Function &&function) noexcept
     } catch (...) {
         fail_current_exception();
         return nullptr;
+    }
+}
+
+// Generic result shapes for generated entries that can report "no result" or a
+// list of results.  `function` returns a possibly-null RCP, respectively a
+// vector of RCPs; success is SYMENGINE_SWIFT_OK with `*result` left null, or
+// with an owned reference per element in a malloc'd buffer.
+template <typename Function>
+symengine_swift_status make_optional_result(symengine_swift_basic_ref *result,
+                                            Function &&function) noexcept
+{
+    if (result == nullptr)
+        return fail(SYMENGINE_SWIFT_INVALID_ARGUMENT,
+                    "result pointer must be non-null");
+    *result = nullptr;
+    if (!initialized.load(std::memory_order_acquire))
+        return fail(SYMENGINE_SWIFT_RUNTIME_ERROR,
+                    "Swift cooperative hooks are not initialized");
+    try {
+        last_error.clear();
+        RCP<const Basic> value = function();
+        if (!value.is_null())
+            *result = return_owned(value);
+        return SYMENGINE_SWIFT_OK;
+    } catch (...) {
+        return fail_current_exception();
+    }
+}
+
+template <typename Function>
+symengine_swift_status make_list_result(symengine_swift_basic_ref **values,
+                                        size_t *count,
+                                        Function &&function) noexcept
+{
+    if (values == nullptr || count == nullptr)
+        return fail(SYMENGINE_SWIFT_INVALID_ARGUMENT,
+                    "result pointers must be non-null");
+    *values = nullptr;
+    *count = 0;
+    if (!initialized.load(std::memory_order_acquire))
+        return fail(SYMENGINE_SWIFT_RUNTIME_ERROR,
+                    "Swift cooperative hooks are not initialized");
+    try {
+        last_error.clear();
+        const std::vector<RCP<const Basic>> items = function();
+        if (items.empty())
+            return SYMENGINE_SWIFT_OK;
+        auto *buffer = static_cast<symengine_swift_basic_ref *>(
+            std::malloc(items.size() * sizeof(symengine_swift_basic_ref)));
+        if (buffer == nullptr)
+            return fail(SYMENGINE_SWIFT_OUT_OF_MEMORY, "out of memory");
+        for (size_t index = 0; index < items.size(); ++index)
+            buffer[index] = return_owned(items[index]);
+        *values = buffer;
+        *count = items.size();
+        return SYMENGINE_SWIFT_OK;
+    } catch (...) {
+        return fail_current_exception();
     }
 }
 
@@ -214,6 +273,12 @@ symengine_swift_string(symengine_swift_basic_ref value, char **result)
 void symengine_swift_string_free(char *value)
 {
     std::free(value);
+}
+
+void symengine_swift_basic_list_free(symengine_swift_basic_ref *values)
+{
+    // Only the buffer: each element's reference was handed to the caller.
+    std::free(values);
 }
 
 symengine_swift_status symengine_swift_wrapper_lock(void)

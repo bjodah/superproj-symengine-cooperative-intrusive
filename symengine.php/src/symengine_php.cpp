@@ -127,6 +127,18 @@ void symengine_wrap_basic(zval *return_value,
     basic->set_self_external(Z_OBJ_P(return_value));
 }
 
+void symengine_wrap_basic_list(
+    zval *return_value,
+    const std::vector<SymEngine::RCP<const SymEngine::Basic>> &values)
+{
+    array_init_size(return_value, static_cast<uint32_t>(values.size()));
+    for (const auto &value : values) {
+        zval item;
+        symengine_wrap_basic(&item, value);
+        add_next_index_zval(return_value, &item);
+    }
+}
+
 SymEngine::RCP<const SymEngine::Basic> symengine_unwrap_basic(zval *obj)
 {
     return SymEngine::rcp(symengine_require_basic_ptr(obj));

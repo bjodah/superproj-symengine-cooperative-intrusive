@@ -28,6 +28,19 @@ jlong make_handle(BasicHandle value)
     return reinterpret_cast<jlong>(cell);
 }
 
+jlongArray make_handle_array(JNIEnv *env, const std::vector<BasicHandle> &values)
+{
+    jlongArray result = env->NewLongArray(static_cast<jsize>(values.size()));
+    if (result == nullptr) return nullptr;
+    std::vector<jlong> handles;
+    handles.reserve(values.size());
+    for (const auto &value : values) handles.push_back(make_handle(value));
+    if (!handles.empty()) {
+        env->SetLongArrayRegion(result, 0, static_cast<jsize>(handles.size()), handles.data());
+    }
+    return result;
+}
+
 const BasicHandle &require_handle(jlong handle)
 {
     if (handle == 0) throw std::invalid_argument("Basic handle is null or closed");

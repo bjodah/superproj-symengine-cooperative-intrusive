@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import json
 from pathlib import Path
 import re
 
@@ -198,11 +199,15 @@ def test_coverage_is_complete_and_java_generates_the_common_surface() -> None:
                for _, _, status in rows)
     java_status = {entry: status for entry, language, status in rows if language == "java"}
     for common in ("add", "sub", "mul", "div", "pow", "neg", "sin", "zero", "one", "pi",
-                   "eq", "lt", "gcd", "nextprime", "totient"):
+                   "eq", "lt", "gcd", "nextprime", "totient",
+                   "mod_inverse", "factor", "prime_factors", "powermod_list"):
         assert java_status[common] == "generated"
-    # Families no renderer but Python supports yet.
-    assert java_status["mod_inverse"] == "not exposed"
-    assert java_status["prime_factors"] == "not exposed"
+    # Every generated entry now reaches every language it is exposed to; only
+    # the deliberately python-withheld singletons are still "not exposed".
+    python_status = {entry: status for entry, language, status in rows if language == "python"}
+    assert {entry for entry, status in python_status.items() if status == "not exposed"} == {
+        "catalan", "golden_ratio", "minus_one", "neg_inf", "two",
+    }
     assert "| `add` | perl | generated |" in render_coverage_report(spec)
 
 
@@ -319,7 +324,7 @@ def test_check_command_end_to_end(capsys: pytest.CaptureFixture[str]) -> None:
 def test_committed_test_cases_validate_against_the_spec() -> None:
     spec = validate_spec(API_PATH)
     suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
-    assert len(suite.cases) == 46
+    assert len(suite.cases) == 54
     ids = {case.id for case in suite.cases}
     assert ids == {
         "add_integers", "sub_integers", "mul_integers", "div_integers",
@@ -336,7 +341,17 @@ def test_committed_test_cases_validate_against_the_spec() -> None:
         "le_symbols", "ge_symbol_integer", "gt_integers",
         "gcd_integers", "lcm_integers", "nextprime_integer",
         "totient_integer", "carmichael_integer",
+        "mod_inverse_integers", "mod_inverse_no_inverse", "primitive_root_prime",
+        "powermod_integers", "factor_trial_division_composite",
+        "prime_factors_composite", "primitive_root_list_prime",
+        "powermod_list_integers",
     }
+    kinds = {case.id: case.expect.kind for case in suite.cases}
+    assert kinds["mod_inverse_no_inverse"] == "none"
+    assert kinds["prime_factors_composite"] == "strings"
+    assert next(
+        case for case in suite.cases if case.id == "prime_factors_composite"
+    ).expect.strings == ("2", "2", "3", "5")
 
 
 def test_rejects_unknown_case_function(tmp_path: Path) -> None:
@@ -519,10 +534,12 @@ def test_functions_for_language_backs_every_per_language_selection() -> None:
 
 
 def test_functions_for_language_names_the_language_of_an_unsupported_behavior() -> None:
+    """Every family in the schema now has a renderer everywhere, so the gap
+    report is exercised with a synthetic family a future spec might add."""
     spec = validate_spec(API_PATH)
     unsupported = dataclasses.replace(
         next(function for function in spec.functions if function.id == "add"),
-        behavior="list_integer_to_basic",
+        behavior="matrix_of_basic",
     )
     mutated = dataclasses.replace(
         spec,
@@ -538,23 +555,24 @@ def test_functions_for_language_names_the_language_of_an_unsupported_behavior() 
         with pytest.raises(ValueError) as error:
             render_common.functions_for_language(mutated, language, families)
         assert str(error.value) == (
-            f"entry 'add': {label} renderer does not support 'list_integer_to_basic'"
+            f"entry 'add': {label} renderer does not support 'matrix_of_basic'"
         )
     # Without a supported set nothing is rejected; Python reports at render time.
     assert unsupported in render_common.functions_for_language(mutated, "python")
 
 
-def test_every_non_python_renderer_supports_the_same_families() -> None:
+def test_every_non_python_renderer_supports_every_family_in_the_schema() -> None:
     """Nothing forces the four sets to agree, but a divergence should be a
-    deliberate edit rather than a renderer someone forgot to widen."""
+    deliberate edit rather than a renderer someone forgot to widen.  They now
+    also cover every family the schema admits, which is what makes Python's
+    coverage no longer special."""
+    schema = json.loads((ROOT / "binding-spec" / "schema.json").read_text(encoding="utf-8"))
+    admitted = frozenset(
+        schema["properties"]["functions"]["items"]["properties"]["behavior"]["enum"]
+    )
     for families in (PERL_FAMILIES, PHP_FAMILIES, SWIFT_FAMILIES, JAVA_FAMILIES):
-        assert families == frozenset((
-            "singleton", "unary_basic", "binary_basic", "binary_boolean",
-            "integer_unary", "integer_binary",
-        ))
-        # Still Python-only; they need a documented adapter policy first.
-        assert "status_optional_unary" not in families
-        assert "list_integer_to_basic" not in families
+        assert families == admitted
+        assert families == frozenset(render_common.RESULT_SHAPES)
 
 
 def test_cpp_call_passes_basic_arguments_straight_through() -> None:
@@ -635,6 +653,170 @@ def test_relational_entries_reach_every_public_surface_under_documented_names() 
     assert "static func lt(_ a: Basic, _ b: Basic) throws -> Basic {" in render_swift_api(spec)
     assert "static native long gcd(long a, long b);" in render_java_jni(spec)
     assert "public static Basic carmichael(Basic a) {" in render_java_api(spec)
+
+
+def test_cpp_result_shapes_the_status_and_vector_out_parameter_families() -> None:
+    """Both out-parameter families have exactly one C++ definition; a wrapper
+    only chooses how to hand ``value`` (guarded by ``found``) back."""
+    spec = validate_spec(API_PATH)
+    optional = next(function for function in spec.functions if function.id == "primitive_root")
+    result = render_common.cpp_result(optional, lambda argument: f"unwrap({argument.name})", indent="  ")
+    assert result.shape == "optional"
+    assert result.value == "symengine_out" and result.found == "symengine_found"
+    assert result.statements[0] == "  SymEngine::RCP<const SymEngine::Integer> symengine_out;"
+    assert result.statements[-1] == (
+        "  const bool symengine_found = "
+        "(SymEngine::primitive_root(SymEngine::outArg(symengine_out), *n_integer)) != 0;"
+    )
+
+    listed = next(function for function in spec.functions if function.id == "prime_factors")
+    result = render_common.cpp_result(listed, lambda argument: f"unwrap({argument.name})", indent="  ")
+    assert result.shape == "list" and result.found is None
+    assert result.value == "symengine_values"
+    assert result.statements[0] == (
+        "  std::vector<SymEngine::RCP<const SymEngine::Integer>> symengine_out;"
+    )
+    assert result.statements[-2] == "  SymEngine::prime_factors(symengine_out, *n_integer);"
+    assert result.statements[-1] == (
+        "  std::vector<SymEngine::RCP<const SymEngine::Basic>> "
+        "symengine_values(symengine_out.begin(), symengine_out.end());"
+    )
+
+
+def test_cpp_call_narrows_number_arguments_and_casts_plain_scalars() -> None:
+    """``Number`` is abstract, so its guard is ``is_a_sub``; ``double``/
+    ``unsigned`` arguments are ordinary C++ values, not expression handles."""
+    spec = validate_spec(API_PATH)
+    powermod = next(function for function in spec.functions if function.id == "powermod")
+    prologue, call = render_common.cpp_call(powermod, lambda argument: f"unwrap({argument.name})")
+    assert "SymEngine::is_a_sub<SymEngine::Number>(*b_basic)" in "\n".join(prologue)
+    assert "must be a Number" in "\n".join(prologue)
+    assert call == "SymEngine::powermod(a_integer, b_number, m_integer)"
+
+    factor = next(function for function in spec.functions if function.id == "factor")
+    _, call = render_common.cpp_call(factor, lambda argument: f"unwrap({argument.name})")
+    assert call == "SymEngine::factor(*n_integer, static_cast<double>(B1))"
+
+
+def test_every_wrapper_renders_the_optional_family_its_own_idiomatic_way() -> None:
+    spec = validate_spec(API_PATH)
+    assert "RETVAL = symengine_found" in render_perl_xs_inc(spec)
+    assert "SymEnginePerl::undefined();" in render_perl_xs_inc(spec)
+    assert "        RETURN_NULL();" in render_php_inc(spec)
+    assert (
+        "ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_symengine_mod_inverse, 0, 2, "
+        "SymEngine\\\\Basic, 1)" in render_php_inc(spec)
+    )
+    assert "function symengine_mod_inverse(SymEngine\\Basic $a, SymEngine\\Basic $m): ?SymEngine\\Basic {}" \
+        in render_php_stub(spec)
+    assert "make_optional_result(result, [&]() -> SymEngine::RCP<const SymEngine::Basic> {" \
+        in render_swift_cpp(spec)
+    assert "static func modInverse(_ a: Basic, _ m: Basic) throws -> Basic? {" in render_swift_api(spec)
+    assert "static native long modInverse(long a, long m);" in render_java_jni(spec)
+    assert "        return handle == 0 ? null : Basic.fromHandle(handle);" in render_java_api(spec)
+    assert "@return null when SymEngine reports that no result exists." in render_java_api(spec)
+
+
+def test_every_wrapper_renders_the_list_family_as_that_language_s_container() -> None:
+    spec = validate_spec(API_PATH)
+    assert "RETVAL = SymEnginePerl::wrap_basic_list(symengine_values);" in render_perl_xs_inc(spec)
+    assert "symengine_wrap_basic_list(return_value, symengine_values);" in render_php_inc(spec)
+    assert (
+        "ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_symengine_prime_factors, 0, 1, IS_ARRAY, 0)"
+        in render_php_inc(spec)
+    )
+    assert "function symengine_prime_factors(SymEngine\\Basic $n): array {}" in render_php_stub(spec)
+    assert (
+        "symengine_swift_status symengine_swift_prime_factors(symengine_swift_basic_ref n, "
+        "symengine_swift_basic_ref **values, size_t *count)" in render_swift_cpp(spec)
+    )
+    assert "return try adoptList(values, count)" in render_swift_api(spec)
+    assert "static native long[] primeFactors(long n);" in render_java_jni(spec)
+    assert "public static Basic[] primeFactors(Basic n) {" in render_java_api(spec)
+    assert "return symengine_java::make_handle_array(env, symengine_values);" in render_java_cpp(spec)
+
+
+def test_every_wrapper_declares_plain_scalar_arguments_in_its_own_types() -> None:
+    """``factor``/``factor_pollard_*`` take C++ scalars; Python keeps their
+    defaults, the four type-erased wrappers require every argument."""
+    spec = validate_spec(API_PATH)
+    assert "    double B1" in render_perl_xs_inc(spec)
+    assert "    unsigned int retries" in render_perl_xs_inc(spec)
+    assert "    ZEND_ARG_TYPE_INFO(0, B1, IS_DOUBLE, 0)" in render_php_inc(spec)
+    assert "    double B1;" in render_php_inc(spec)
+    assert '"Od", &n, symengine_ce_basic, &B1' in render_php_inc(spec)
+    assert "function symengine_factor(SymEngine\\Basic $n, float $B1): ?SymEngine\\Basic {}" \
+        in render_php_stub(spec)
+    assert "symengine_swift_basic_ref n, double B1," in render_swift_cpp(spec)
+    assert "static func factor(_ n: Basic, _ B1: Double) throws -> Basic? {" in render_swift_api(spec)
+    assert "static native long factor(long n, double B1);" in render_java_jni(spec)
+    assert "public static Basic factor(Basic n, double B1) {" in render_java_api(spec)
+    assert "jclass, jlong n, jdouble B1)" in render_java_cpp(spec)
+    # Python alone renders the C++ default values.
+    assert 'nb::arg("B1") = 1.0' in render_python_inc(spec)
+
+
+def test_test_renderers_spell_the_new_expectations_in_every_language() -> None:
+    spec = validate_spec(API_PATH)
+    suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
+    python = render_python_tests(spec, suite)
+    assert "    assert result is None" in python
+    assert "    assert [sx.str(value) for value in result] == ['2', '2', '3', '5']" in python
+
+    perl = render_perl_tests(spec, suite)
+    assert "is(SymEngine::mod_inverse($a, $m), undef, 'mod_inverse_no_inverse');" in perl
+    assert (
+        "is_deeply([map { \"\" . $_ } @{ SymEngine::prime_factors($n) }], "
+        "['2', '2', '3', '5'], 'prime_factors_composite');" in perl
+    )
+
+    php = render_php_tests(spec, suite)
+    assert "echo (symengine_mod_inverse($a, $m) === null ? 'NULL' : 'NOT NULL'), \"\\n\";" in php
+    assert "echo implode(',', array_map('symengine_str', symengine_prime_factors($n))), \"\\n\";" in php
+    expected = php.split("--EXPECT--\n", 1)[1].splitlines()
+    assert "NULL" in expected and "2,2,3,5" in expected
+
+    swift = render_swift_tests(spec, suite)
+    assert "        XCTAssertNil(result)" in swift
+    assert 'XCTAssertEqual(try result.map { try $0.string() }, ["2", "2", "3", "5"])' in swift
+    # A string expectation on an optional entry needs Swift's static unwrap.
+    assert "let result = try XCTUnwrap(SymEngine.modInverse(a, m))" in swift
+
+    java = render_java_tests(spec, suite)
+    assert "assert result_mod_inverse_no_inverse == null" in java
+    assert "Basic[] result_prime_factors_composite = SymEngine.primeFactors(n);" in java
+    assert 'assert text_prime_factors_composite.toString().equals("2,2,3,5")' in java
+
+
+def test_schema_rejects_an_expectation_that_states_nothing_or_two_things(tmp_path: Path) -> None:
+    document = cases_document()
+    case_entry(document, "add_integers")["expect"] = {}
+    assert_invalid_cases(tmp_path, document, r"case 'add_integers'.*expect")
+
+    document = cases_document()
+    case_entry(document, "add_integers")["expect"] = {"string": "5", "none": True}
+    assert_invalid_cases(tmp_path, document, r"case 'add_integers'.*expect")
+
+    document = cases_document()
+    case_entry(document, "prime_factors_composite")["expect"] = {"strings": [2, 3]}
+    assert_invalid_cases(tmp_path, document, r"case 'prime_factors_composite'.*expect.strings")
+
+
+def test_rejects_an_expectation_that_does_not_fit_the_entry_s_family(tmp_path: Path) -> None:
+    document = cases_document()
+    case_entry(document, "add_integers")["expect"] = {"none": True}
+    assert_invalid_cases(
+        tmp_path, document,
+        r"case 'add_integers': expectation 'none' does not fit 'add' \(binary_basic\)",
+    )
+
+    document = cases_document()
+    case_entry(document, "prime_factors_composite")["expect"] = {"string": "2"}
+    assert_invalid_cases(
+        tmp_path, document,
+        r"case 'prime_factors_composite': expectation 'string' does not fit "
+        r"'prime_factors' \(list_integer_to_basic\)",
+    )
 
 
 def test_header_banner_is_shared_and_comment_marker_aware() -> None:

@@ -186,6 +186,24 @@ SV *wrap_basic_perl_owned(const RCP<const Basic> &value)
     return wrap_basic(value);
 }
 
+SV *undefined()
+{
+    // xsubpp mortalizes the SV * an XSUB puts in RETVAL, so the shared
+    // &PL_sv_undef must not be handed back here; a fresh undef scalar can be
+    // mortalized safely and is indistinguishable to Perl code.
+    return newSV(0);
+}
+
+SV *wrap_basic_list(const std::vector<RCP<const Basic>> &values)
+{
+    AV *array = newAV();
+    for (const auto &value : values) {
+        // av_push() takes over the reference wrap_basic() returns.
+        av_push(array, wrap_basic(value));
+    }
+    return newRV_noinc(reinterpret_cast<SV *>(array));
+}
+
 RCP<const Basic> unwrap_basic(SV *sv)
 {
     const Basic *p = holder_from_sv(sv)->ptr;

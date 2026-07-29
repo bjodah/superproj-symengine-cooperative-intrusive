@@ -43,6 +43,11 @@ eq(a, b) -> SV *
 erf(a) -> SV *
 erfc(a) -> SV *
 euler_gamma() -> SV *
+factor(n, B1) -> SV *
+factor_lehman_method(n) -> SV *
+factor_pollard_pm1_method(n, B, retries) -> SV *
+factor_pollard_rho_method(n, retries) -> SV *
+factor_trial_division(n) -> SV *
 floor(a) -> SV *
 gamma(a) -> SV *
 gcd(a, b) -> SV *
@@ -59,16 +64,25 @@ loggamma(a) -> SV *
 lowergamma(s, x) -> SV *
 lt(a, b) -> SV *
 minus_one() -> SV *
+mod_inverse(a, m) -> SV *
 mul(a, b) -> SV *
+multiplicative_order(a, n) -> SV *
 nan() -> SV *
 ne(a, b) -> SV *
 neg(a) -> SV *
 neg_inf() -> SV *
 nextprime(a) -> SV *
+nthroot_mod(a, n, m) -> SV *
+nthroot_mod_list(a, n, m) -> SV *
 one() -> SV *
 pi() -> SV *
 polygamma(n, x) -> SV *
 pow(a, b) -> SV *
+powermod(a, b, m) -> SV *
+powermod_list(a, b, m) -> SV *
+prime_factors(n) -> SV *
+primitive_root(n) -> SV *
+primitive_root_list(n) -> SV *
 sec(a) -> SV *
 sech(a) -> SV *
 sign(a) -> SV *

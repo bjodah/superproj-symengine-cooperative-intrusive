@@ -7,6 +7,7 @@ symengine_swift_basic_ref symengine_swift_integer(int64_t value)
 symengine_swift_status symengine_swift_equal(symengine_swift_basic_ref left, symengine_swift_basic_ref right, int *result)
 symengine_swift_status symengine_swift_string(symengine_swift_basic_ref value, char **result)
 void symengine_swift_string_free(char *value)
+void symengine_swift_basic_list_free(symengine_swift_basic_ref *values)
 symengine_swift_status symengine_swift_wrapper_lock(void)
 void symengine_swift_wrapper_unlock(void)
 void *symengine_swift_external_owner(symengine_swift_basic_ref value)
@@ -50,6 +51,11 @@ symengine_swift_basic_ref symengine_swift_eq(symengine_swift_basic_ref a, symeng
 symengine_swift_basic_ref symengine_swift_erf(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_erfc(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_euler_gamma()
+symengine_swift_status symengine_swift_factor(symengine_swift_basic_ref n, double B1, symengine_swift_basic_ref *result)
+symengine_swift_status symengine_swift_factor_lehman_method(symengine_swift_basic_ref n, symengine_swift_basic_ref *result)
+symengine_swift_status symengine_swift_factor_pollard_pm1_method(symengine_swift_basic_ref n, unsigned B, unsigned retries, symengine_swift_basic_ref *result)
+symengine_swift_status symengine_swift_factor_pollard_rho_method(symengine_swift_basic_ref n, unsigned retries, symengine_swift_basic_ref *result)
+symengine_swift_status symengine_swift_factor_trial_division(symengine_swift_basic_ref n, symengine_swift_basic_ref *result)
 symengine_swift_basic_ref symengine_swift_floor(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_gamma(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_gcd(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
@@ -66,16 +72,25 @@ symengine_swift_basic_ref symengine_swift_loggamma(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_lowergamma(symengine_swift_basic_ref s, symengine_swift_basic_ref x)
 symengine_swift_basic_ref symengine_swift_lt(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_minus_one()
+symengine_swift_status symengine_swift_mod_inverse(symengine_swift_basic_ref a, symengine_swift_basic_ref m, symengine_swift_basic_ref *result)
 symengine_swift_basic_ref symengine_swift_mul(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_status symengine_swift_multiplicative_order(symengine_swift_basic_ref a, symengine_swift_basic_ref n, symengine_swift_basic_ref *result)
 symengine_swift_basic_ref symengine_swift_nan()
 symengine_swift_basic_ref symengine_swift_ne(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
 symengine_swift_basic_ref symengine_swift_neg(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_neg_inf()
 symengine_swift_basic_ref symengine_swift_nextprime(symengine_swift_basic_ref a)
+symengine_swift_status symengine_swift_nthroot_mod(symengine_swift_basic_ref a, symengine_swift_basic_ref n, symengine_swift_basic_ref m, symengine_swift_basic_ref *result)
+symengine_swift_status symengine_swift_nthroot_mod_list(symengine_swift_basic_ref a, symengine_swift_basic_ref n, symengine_swift_basic_ref m, symengine_swift_basic_ref **values, size_t *count)
 symengine_swift_basic_ref symengine_swift_one()
 symengine_swift_basic_ref symengine_swift_pi()
 symengine_swift_basic_ref symengine_swift_polygamma(symengine_swift_basic_ref n, symengine_swift_basic_ref x)
 symengine_swift_basic_ref symengine_swift_pow(symengine_swift_basic_ref a, symengine_swift_basic_ref b)
+symengine_swift_status symengine_swift_powermod(symengine_swift_basic_ref a, symengine_swift_basic_ref b, symengine_swift_basic_ref m, symengine_swift_basic_ref *result)
+symengine_swift_status symengine_swift_powermod_list(symengine_swift_basic_ref a, symengine_swift_basic_ref b, symengine_swift_basic_ref m, symengine_swift_basic_ref **values, size_t *count)
+symengine_swift_status symengine_swift_prime_factors(symengine_swift_basic_ref n, symengine_swift_basic_ref **values, size_t *count)
+symengine_swift_status symengine_swift_primitive_root(symengine_swift_basic_ref n, symengine_swift_basic_ref *result)
+symengine_swift_status symengine_swift_primitive_root_list(symengine_swift_basic_ref n, symengine_swift_basic_ref **values, size_t *count)
 symengine_swift_basic_ref symengine_swift_sec(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_sech(symengine_swift_basic_ref a)
 symengine_swift_basic_ref symengine_swift_sign(symengine_swift_basic_ref a)
@@ -143,6 +158,11 @@ public static func eq(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func erf(_ a: Basic) throws -> Basic {
 public static func erfc(_ a: Basic) throws -> Basic {
 public static func eulerGamma() throws -> Basic {
+public static func factor(_ n: Basic, _ B1: Double) throws -> Basic? {
+public static func factorLehmanMethod(_ n: Basic) throws -> Basic? {
+public static func factorPollardPm1Method(_ n: Basic, _ B: UInt32, _ retries: UInt32) throws -> Basic? {
+public static func factorPollardRhoMethod(_ n: Basic, _ retries: UInt32) throws -> Basic? {
+public static func factorTrialDivision(_ n: Basic) throws -> Basic? {
 public static func floor(_ a: Basic) throws -> Basic {
 public static func gamma(_ a: Basic) throws -> Basic {
 public static func gcd(_ a: Basic, _ b: Basic) throws -> Basic {
@@ -159,16 +179,25 @@ public static func loggamma(_ a: Basic) throws -> Basic {
 public static func lowergamma(_ s: Basic, _ x: Basic) throws -> Basic {
 public static func lt(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func minusOne() throws -> Basic {
+public static func modInverse(_ a: Basic, _ m: Basic) throws -> Basic? {
 public static func multiply(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func multiplicativeOrder(_ a: Basic, _ n: Basic) throws -> Basic? {
 public static func nan() throws -> Basic {
 public static func ne(_ a: Basic, _ b: Basic) throws -> Basic {
 public static func negate(_ a: Basic) throws -> Basic {
 public static func negInf() throws -> Basic {
 public static func nextprime(_ a: Basic) throws -> Basic {
+public static func nthrootMod(_ a: Basic, _ n: Basic, _ m: Basic) throws -> Basic? {
+public static func nthrootModList(_ a: Basic, _ n: Basic, _ m: Basic) throws -> [Basic] {
 public static func one() throws -> Integer {
 public static func pi() throws -> Basic {
 public static func polygamma(_ n: Basic, _ x: Basic) throws -> Basic {
 public static func power(_ a: Basic, _ b: Basic) throws -> Basic {
+public static func powermod(_ a: Basic, _ b: Basic, _ m: Basic) throws -> Basic? {
+public static func powermodList(_ a: Basic, _ b: Basic, _ m: Basic) throws -> [Basic] {
+public static func primeFactors(_ n: Basic) throws -> [Basic] {
+public static func primitiveRoot(_ n: Basic) throws -> Basic? {
+public static func primitiveRootList(_ n: Basic) throws -> [Basic] {
 public static func sec(_ a: Basic) throws -> Basic {
 public static func sech(_ a: Basic) throws -> Basic {
 public static func sign(_ a: Basic) throws -> Basic {

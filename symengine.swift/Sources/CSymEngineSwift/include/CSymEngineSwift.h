@@ -1,6 +1,7 @@
 #ifndef C_SYMENGINE_SWIFT_H
 #define C_SYMENGINE_SWIFT_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -44,6 +45,15 @@ symengine_swift_equal(symengine_swift_basic_ref left,
 symengine_swift_status
 symengine_swift_string(symengine_swift_basic_ref value, char **result);
 void symengine_swift_string_free(char *value);
+
+/*
+ * Generated entries whose result may be absent, or may be a list, report it
+ * through out-parameters: a null return would be indistinguishable from the
+ * "an error was recorded in last_error" convention above.  The list buffer is
+ * malloc'd and holds one owned reference per element; the caller adopts every
+ * element and then frees the buffer itself with the call below.
+ */
+void symengine_swift_basic_list_free(symengine_swift_basic_ref *values);
 
 /* Cooperative wrapper adoption and finalization support. */
 symengine_swift_status symengine_swift_wrapper_lock(void);

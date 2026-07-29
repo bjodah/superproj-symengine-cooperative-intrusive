@@ -188,7 +188,10 @@ def swift_surface() -> str:
 
 def java_surface() -> str:
     spec = validate_spec(ROOT / "binding-spec" / "api.yaml")
-    generated = re.findall(r"(?m)^    public static (?:Basic|\w+) (\w+)\([^)]*\) \{$", render_java_api(spec))
+    # ``Basic``, a primitive, or an array of them (list-returning entries).
+    generated = re.findall(
+        r"(?m)^    public static \w+(?:\[\])? (\w+)\([^)]*\) \{$", render_java_api(spec)
+    )
     manual = (ROOT / "symengine.java" / "src" / "main" / "java" / "org" / "symengine" / "Basic.java").read_text(
         encoding="utf-8"
     )

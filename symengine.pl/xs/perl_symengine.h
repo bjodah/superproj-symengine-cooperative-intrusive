@@ -11,6 +11,8 @@
 #include <symengine/basic.h>
 #include <symengine/symengine_rcp.h>
 
+#include <vector>
+
 namespace SymEnginePerl {
 
 // The holder lives inside the blessed inner SV and stores a *raw* pointer to
@@ -25,6 +27,11 @@ struct BasicHolder {
 void initialize();
 SV *wrap_basic(const SymEngine::RCP<const SymEngine::Basic> &value);
 SV *wrap_basic_perl_owned(const SymEngine::RCP<const SymEngine::Basic> &value);
+// Generic result shapes an entry can have besides a single expression: Perl's
+// undef for "no result", and a reference to an array of wrapped handles for a
+// list result.  Both are per-language spellings only; no entry-specific code.
+SV *undefined();
+SV *wrap_basic_list(const std::vector<SymEngine::RCP<const SymEngine::Basic>> &values);
 SymEngine::RCP<const SymEngine::Basic> unwrap_basic(SV *sv);
 std::string stringify(SV *sv);
 bool equals(SV *left, SV *right);

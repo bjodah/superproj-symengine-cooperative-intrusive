@@ -6,14 +6,34 @@ Handle allocation, release, and exception translation intentionally live in
 
 from __future__ import annotations
 
-from .model import BindingSpec, Function
-from .render_common import cpp_call, functions_for_language, header
+from .model import Argument, BindingSpec, Function
+from .render_common import (
+    RESULT_SHAPES,
+    SCALAR_TYPES,
+    cpp_result,
+    functions_for_language,
+    header,
+)
 
 
 SUPPORTED_FAMILIES = frozenset((
     "singleton", "unary_basic", "binary_basic", "binary_boolean",
-    "integer_unary", "integer_binary",
+    "integer_unary", "integer_binary", "status_optional_unary",
+    "list_integer_to_basic",
 ))
+
+# Java, JNI and public-facade spellings of the spec's non-handle argument types.
+JAVA_SCALARS = {"double": ("double", "jdouble"), "unsigned": ("int", "jint")}
+
+# What each result shape looks like on the three Java-side surfaces.
+JAVA_NATIVE_RETURNS = {"handle": "long", "optional": "long", "list": "long[]"}
+JAVA_PUBLIC_RETURNS = {"handle": "Basic", "optional": "Basic", "list": "Basic[]"}
+JNI_RETURNS = {"handle": "jlong", "optional": "jlong", "list": "jlongArray"}
+JNI_FAILURE = {"handle": "0", "optional": "0", "list": "nullptr"}
+JAVADOC = {
+    "optional": "    /** @return null when SymEngine reports that no result exists. */",
+    "list": "    /** @return every result in SymEngine's order; empty when there are none. */",
+}
 
 
 def java_functions(spec: BindingSpec) -> tuple[Function, ...]:
@@ -22,7 +42,12 @@ def java_functions(spec: BindingSpec) -> tuple[Function, ...]:
 
 
 def _native_parameters(function: Function) -> str:
-    return ", ".join(f"long {argument.name}" for argument in function.arguments)
+    return ", ".join(
+        f"{JAVA_SCALARS[argument.type_id][0]} {argument.name}"
+        if argument.type_id in SCALAR_TYPES
+        else f"long {argument.name}"
+        for argument in function.arguments
+    )
 
 
 def render_java_jni(spec: BindingSpec) -> str:
@@ -45,9 +70,25 @@ def render_java_jni(spec: BindingSpec) -> str:
         "    static native long liveHandleCount();",
     ])
     for function in java_functions(spec):
-        lines.append(f"    static native long {function.public_name('java')}({_native_parameters(function)});")
+        returns = JAVA_NATIVE_RETURNS[RESULT_SHAPES[function.behavior]]
+        lines.append(
+            f"    static native {returns} {function.public_name('java')}"
+            f"({_native_parameters(function)});"
+        )
     lines.extend(["}", ""])
     return "\n".join(lines)
+
+
+def _public_parameter(argument: Argument) -> str:
+    if argument.type_id in SCALAR_TYPES:
+        return f"{JAVA_SCALARS[argument.type_id][0]} {argument.name}"
+    return f"Basic {argument.name}"
+
+
+def _forwarded(argument: Argument) -> str:
+    if argument.type_id in SCALAR_TYPES:
+        return argument.name
+    return f"Basic.requireHandle({argument.name})"
 
 
 def render_java_api(spec: BindingSpec) -> str:
@@ -72,18 +113,40 @@ def render_java_api(spec: BindingSpec) -> str:
         "    }",
     ])
     for function in java_functions(spec):
+        shape = RESULT_SHAPES[function.behavior]
         name = function.public_name("java")
-        parameters = ", ".join(f"Basic {argument.name}" for argument in function.arguments)
-        handle_arguments = ", ".join(
-            f"Basic.requireHandle({argument.name})" for argument in function.arguments
-        )
-        lines.extend(["", f"    public static Basic {name}({parameters}) {{"])
+        parameters = ", ".join(_public_parameter(argument) for argument in function.arguments)
+        handle_arguments = ", ".join(_forwarded(argument) for argument in function.arguments)
+        lines.append("")
+        if shape in JAVADOC:
+            lines.append(JAVADOC[shape])
         lines.append(
-            f"        return Basic.fromHandle(SymEngineJNI.{name}({handle_arguments}));"
+            f"    public static {JAVA_PUBLIC_RETURNS[shape]} {name}({parameters}) {{"
         )
+        if shape == "optional":
+            # A pending JNI exception is delivered before this handle is read,
+            # so 0 here can only mean "SymEngine found no result".
+            lines.extend([
+                f"        long handle = SymEngineJNI.{name}({handle_arguments});",
+                "        return handle == 0 ? null : Basic.fromHandle(handle);",
+            ])
+        elif shape == "list":
+            lines.append(
+                f"        return Basic.fromHandles(SymEngineJNI.{name}({handle_arguments}));"
+            )
+        else:
+            lines.append(
+                f"        return Basic.fromHandle(SymEngineJNI.{name}({handle_arguments}));"
+            )
         lines.append("    }")
     lines.extend(["}", ""])
     return "\n".join(lines)
+
+
+def _jni_parameter(argument: Argument) -> str:
+    if argument.type_id in SCALAR_TYPES:
+        return f"{JAVA_SCALARS[argument.type_id][1]} {argument.name}"
+    return f"jlong {argument.name}"
 
 
 def render_java_cpp(spec: BindingSpec) -> str:
@@ -96,29 +159,39 @@ def render_java_cpp(spec: BindingSpec) -> str:
     headers = sorted({function.cpp.header for function in java_functions(spec)})
     lines.extend(f"#include <{include}>" for include in headers)
     for function in java_functions(spec):
+        shape = RESULT_SHAPES[function.behavior]
         name = function.public_name("java")
-        jni_parameters = ", ".join(f"jlong {argument.name}" for argument in function.arguments)
+        jni_parameters = ", ".join(_jni_parameter(argument) for argument in function.arguments)
         if jni_parameters:
             jni_parameters = ", " + jni_parameters
         lines.extend([
             "",
-            "extern \"C\" JNIEXPORT jlong JNICALL",
+            f"extern \"C\" JNIEXPORT {JNI_RETURNS[shape]} JNICALL",
             f"Java_org_symengine_SymEngineJNI_{name}(JNIEnv *env, jclass{jni_parameters})",
             "{",
             "    try {",
         ])
-        prologue, call = cpp_call(
+        result = cpp_result(
             function, lambda argument: f"symengine_java::require_handle({argument.name})"
         )
-        lines.extend(prologue)
+        lines.extend(result.statements)
+        if shape == "optional":
+            lines.append(
+                f"        return {result.found} "
+                f"? symengine_java::make_handle({result.value}) : 0;"
+            )
+        elif shape == "list":
+            lines.append(f"        return symengine_java::make_handle_array(env, {result.value});")
+        else:
+            lines.append(f"        return symengine_java::make_handle({result.value});")
+        failure = JNI_FAILURE[shape]
         lines.extend([
-            f"        return symengine_java::make_handle({call});",
             "    } catch (const std::exception &error) {",
             "        symengine_java::throw_exception(env, error.what());",
-            "        return 0;",
+            f"        return {failure};",
             "    } catch (...) {",
             "        symengine_java::throw_exception(env, \"unknown SymEngine exception\");",
-            "        return 0;",
+            f"        return {failure};",
             "    }",
             "}",
         ])

@@ -39,6 +39,14 @@ public final class Basic implements AutoCloseable {
         return new Basic(handle);
     }
 
+    /** Wraps a native list result; generic, so no entry needs its own code. */
+    static Basic[] fromHandles(long[] handles) {
+        if (handles == null) throw new SymEngineException("native SymEngine call returned no array");
+        Basic[] result = new Basic[handles.length];
+        for (int index = 0; index < handles.length; index++) result[index] = new Basic(handles[index]);
+        return result;
+    }
+
     static long requireHandle(Basic value) {
         Objects.requireNonNull(value, "value");
         long handle = value.releaser.get();

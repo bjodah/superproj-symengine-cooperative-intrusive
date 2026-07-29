@@ -27,6 +27,8 @@
 #include <symengine/symengine_exception.h>
 #include <symengine/symengine_rcp.h>
 
+#include <vector>
+
 #if !defined(WITH_SYMENGINE_COOPERATIVE_INTRUSIVE_RCP)
 #error "The SymEngine PHP extension requires SYMENGINE_RCP_BACKEND=cooperative_intrusive."
 #endif
@@ -62,6 +64,11 @@ void symengine_register_symbol_class();
 zend_class_entry *symengine_class_for_basic(const SymEngine::Basic *basic);
 void symengine_wrap_basic(zval *return_value,
                           const SymEngine::RCP<const SymEngine::Basic> &value);
+// Generic list-result spelling: a PHP array of wrapped Basic objects.  Nothing
+// here is entry-specific; "no result" needs no helper because it is RETURN_NULL.
+void symengine_wrap_basic_list(
+    zval *return_value,
+    const std::vector<SymEngine::RCP<const SymEngine::Basic>> &values);
 SymEngine::RCP<const SymEngine::Basic> symengine_unwrap_basic(zval *obj);
 
 PHP_MINIT_FUNCTION(symengine);

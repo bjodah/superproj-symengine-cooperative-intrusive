@@ -235,13 +235,25 @@ functions:
     implementation: generated
     adapter: {deref: true}
   - {<<: *integer_binary, id: lcm, cpp: {name: SymEngine::lcm, header: symengine/ntheory.h}}
+  # Entries whose C++ shape is "status return plus an ``outArg`` result".  Every
+  # wrapper spells the absent result its own idiomatic way -- Python ``None``,
+  # Perl ``undef``, PHP ``null``, Swift ``Basic?``, Java ``null`` -- and the
+  # shared C++ (declare the result, call, test the status) lives once in
+  # ``render_common.cpp_result``.  ``adapter.status_type`` only records whether
+  # SymEngine returns ``int`` or ``bool``; both are tested as ``!= 0``.
+  #
+  # Argument defaults are a Python convenience only: nanobind can express them,
+  # while the four type-erased wrappers would each need a different optional
+  # -argument mechanism (XS defaults, Zend optional arginfo, Swift default
+  # parameters, Java overloads) for no shared behavior.  Those wrappers declare
+  # every argument, so ``factor(n, B1)`` is a two-argument call there.
   - &status_integer
     id: mod_inverse
     cpp: {name: SymEngine::mod_inverse, header: symengine/ntheory.h}
     arguments: [{name: a, type: integer}, {name: m, type: integer}]
     returns: basic
     behavior: status_optional_unary
-    expose: [python]
+    expose: [python, perl, php, swift, java]
     implementation: generated
     adapter: {deref: true, status_type: int}
   - {<<: *status_integer, id: primitive_root, cpp: {name: SymEngine::primitive_root, header: symengine/ntheory.h}, arguments: [{name: n, type: integer}], adapter: {deref: true, status_type: bool}}
@@ -253,13 +265,16 @@ functions:
   - {<<: *status_integer, id: factor_lehman_method, cpp: {name: SymEngine::factor_lehman_method, header: symengine/ntheory.h}, arguments: [{name: n, type: integer}]}
   - {<<: *status_integer, id: factor_pollard_pm1_method, cpp: {name: SymEngine::factor_pollard_pm1_method, header: symengine/ntheory.h}, arguments: [{name: n, type: integer}, {name: B, type: unsigned, default: 10u}, {name: retries, type: unsigned, default: 5u}]}
   - {<<: *status_integer, id: factor_pollard_rho_method, cpp: {name: SymEngine::factor_pollard_rho_method, header: symengine/ntheory.h}, arguments: [{name: n, type: integer}, {name: retries, type: unsigned, default: 5u}]}
+  # Entries filling a ``std::vector`` out-parameter.  The result is a list of
+  # expressions in every wrapper: a Python list, a Perl array reference, a PHP
+  # array, a Swift ``[Basic]`` and a Java ``Basic[]``.
   - &integer_list
     id: prime_factors
     cpp: {name: SymEngine::prime_factors, header: symengine/ntheory.h}
     arguments: [{name: n, type: integer}]
     returns: basic
     behavior: list_integer_to_basic
-    expose: [python]
+    expose: [python, perl, php, swift, java]
     implementation: generated
     adapter: {deref: true}
   - {<<: *integer_list, id: primitive_root_list, cpp: {name: SymEngine::primitive_root_list, header: symengine/ntheory.h}}

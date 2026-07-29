@@ -264,3 +264,56 @@ cases:
       a: {integer: 12}
     call: {function: carmichael, arguments: [a]}
     expect: {string: "2"}
+
+  # Number-theory entries with a status-plus-out-parameter or a vector
+  # out-parameter.  ``expect.none`` is the "SymEngine reports no result" case
+  # (Python None, Perl undef, PHP null, Swift nil, Java null) and
+  # ``expect.strings`` is an ordered list result.  Between them these cover
+  # both status types, both ``adapter.deref`` settings, a ``number`` argument,
+  # and a multi-element list.
+  - id: mod_inverse_integers
+    arrange:
+      a: {integer: 3}
+      m: {integer: 11}
+    call: {function: mod_inverse, arguments: [a, m]}
+    expect: {string: "4"}
+  - id: mod_inverse_no_inverse
+    arrange:
+      a: {integer: 2}
+      m: {integer: 4}
+    call: {function: mod_inverse, arguments: [a, m]}
+    expect: {none: true}
+  - id: primitive_root_prime
+    arrange:
+      n: {integer: 7}
+    call: {function: primitive_root, arguments: [n]}
+    expect: {string: "3"}
+  - id: powermod_integers
+    arrange:
+      a: {integer: 3}
+      b: {integer: 2}
+      m: {integer: 5}
+    call: {function: powermod, arguments: [a, b, m]}
+    expect: {string: "4"}
+  - id: factor_trial_division_composite
+    arrange:
+      n: {integer: 60}
+    call: {function: factor_trial_division, arguments: [n]}
+    expect: {string: "2"}
+  - id: prime_factors_composite
+    arrange:
+      n: {integer: 60}
+    call: {function: prime_factors, arguments: [n]}
+    expect: {strings: ["2", "2", "3", "5"]}
+  - id: primitive_root_list_prime
+    arrange:
+      n: {integer: 7}
+    call: {function: primitive_root_list, arguments: [n]}
+    expect: {strings: ["3", "5"]}
+  - id: powermod_list_integers
+    arrange:
+      a: {integer: 3}
+      b: {integer: 2}
+      m: {integer: 5}
+    call: {function: powermod_list, arguments: [a, b, m]}
+    expect: {strings: ["4"]}

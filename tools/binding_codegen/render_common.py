@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from typing import Callable
 
 import yaml
@@ -93,6 +94,23 @@ def functions_for_language(
 
 BASIC_RCP = "SymEngine::RCP<const SymEngine::Basic>"
 INTEGER_RCP = "SymEngine::RCP<const SymEngine::Integer>"
+INTEGER_VECTOR = "std::vector<SymEngine::RCP<const SymEngine::Integer>>"
+BASIC_VECTOR = "std::vector<SymEngine::RCP<const SymEngine::Basic>>"
+
+# Spec types that arrive as a type-erased ``Basic`` handle but whose SymEngine
+# overload wants a narrower expression class.  Each value is the SymEngine class
+# the generated guard narrows to, the predicate that decides it, and the English
+# article for the error message.  ``Number`` is abstract, so it has no
+# ``type_code_id`` and needs ``is_a_sub`` rather than the exact ``is_a``.
+DOWNCAST_TYPES = {
+    "integer": ("Integer", "is_a", "an"),
+    "number": ("Number", "is_a_sub", "a"),
+}
+
+# Spec types that are plain C++ scalars rather than expression handles.  Each
+# wrapper receives them in its own numeric parameter type, so the generated call
+# casts explicitly instead of relying on an implicit conversion.
+SCALAR_TYPES = {"double": "double", "unsigned": "unsigned"}
 
 # Every generated call site already sits inside a ``catch`` which reports a C++
 # exception the language's own way (``croak``, ``zend_throw_exception``,
@@ -100,18 +118,42 @@ INTEGER_RCP = "SymEngine::RCP<const SymEngine::Integer>"
 # throwing is the portable way to reject a wrong argument type.
 CallPrologue = list[str]
 
+# How a family's result reaches the caller.  ``handle`` is one expression,
+# ``optional`` is an expression or "no result", ``list`` is zero or more
+# expressions.  Only the last two need a language-specific container.
+RESULT_SHAPES = {
+    "singleton": "handle",
+    "unary_basic": "handle",
+    "binary_basic": "handle",
+    "binary_boolean": "handle",
+    "integer_unary": "handle",
+    "integer_binary": "handle",
+    "status_optional_unary": "optional",
+    "list_integer_to_basic": "list",
+}
 
-def _downcast_lines(function: Function, argument: Argument, unwrapped: str, indent: str) -> CallPrologue:
-    """Return the guarded ``Basic`` -> ``Integer`` narrowing for one argument."""
+# Locals the ``optional``/``list`` shapes introduce.  They are prefixed so they
+# can never collide with a spec argument name (``[a-z][a-z0-9_]*``, but never
+# ``symengine_``-prefixed in practice) or with the ``<name>_integer`` locals.
+OUT_NAME = "symengine_out"
+FOUND_NAME = "symengine_found"
+VALUES_NAME = "symengine_values"
+
+
+def _downcast_lines(
+    function: Function, argument: Argument, unwrapped: str, indent: str, type_id: str
+) -> CallPrologue:
+    """Return the guarded ``Basic`` -> narrower-class conversion for one argument."""
+    target, predicate, article = DOWNCAST_TYPES[type_id]
     handle = f"{argument.name}_basic"
-    message = f"{function.id}(): argument '{argument.name}' must be an Integer"
+    message = f"{function.id}(): argument '{argument.name}' must be {article} {target}"
     return [
         f"{indent}{BASIC_RCP} {handle} = {unwrapped};",
-        f"{indent}if (!SymEngine::is_a<SymEngine::Integer>(*{handle})) {{",
+        f"{indent}if (!SymEngine::{predicate}<SymEngine::{target}>(*{handle})) {{",
         f'{indent}    throw SymEngine::SymEngineException("{message}");',
         f"{indent}}}",
-        f"{indent}{INTEGER_RCP} {argument.name}_integer",
-        f"{indent}    = SymEngine::rcp_static_cast<const SymEngine::Integer>({handle});",
+        f"{indent}SymEngine::RCP<const SymEngine::{target}> {argument.name}_{target.lower()}",
+        f"{indent}    = SymEngine::rcp_static_cast<const SymEngine::{target}>({handle});",
     ]
 
 
@@ -120,6 +162,7 @@ def cpp_call(
     unwrap: Callable[[Argument], str],
     *,
     indent: str = "        ",
+    prefix_arguments: tuple[str, ...] = (),
 ) -> tuple[CallPrologue, str]:
     """Return ``(prologue statements, call expression)`` for one generated entry.
 
@@ -127,6 +170,8 @@ def cpp_call(
     ``RCP<const Basic>``.  A ``singleton`` yields no prologue and the spec's
     constant expression.  ``adapter.deref`` selects between SymEngine overloads
     taking ``const Integer &`` and ``const RCP<const Integer> &``.
+    ``prefix_arguments`` are passed before the spec arguments; that is how the
+    out-parameter families put ``outArg(...)``/the result vector first.
     """
     if function.behavior == "singleton":
         expression = function.cpp.expression
@@ -136,12 +181,66 @@ def cpp_call(
     assert name is not None
     deref = bool(function.adapter.get("deref", True))
     prologue: CallPrologue = []
-    spellings: list[str] = []
+    spellings: list[str] = list(prefix_arguments)
     for argument in function.arguments:
-        if argument.type_id != "integer":
+        if argument.type_id in SCALAR_TYPES:
+            spellings.append(f"static_cast<{SCALAR_TYPES[argument.type_id]}>({argument.name})")
+            continue
+        if argument.type_id not in DOWNCAST_TYPES:
             spellings.append(unwrap(argument))
             continue
-        prologue.extend(_downcast_lines(function, argument, unwrap(argument), indent))
-        local = f"{argument.name}_integer"
+        prologue.extend(
+            _downcast_lines(function, argument, unwrap(argument), indent, argument.type_id)
+        )
+        local = f"{argument.name}_{DOWNCAST_TYPES[argument.type_id][0].lower()}"
         spellings.append(f"*{local}" if deref else local)
     return prologue, f"{name}({', '.join(spellings)})"
+
+
+@dataclass(frozen=True)
+class CppResult:
+    """The C++ an entry's body needs, independent of the target language."""
+
+    statements: CallPrologue
+    value: str  # expression naming the result the wrapper must hand back
+    found: str | None  # condition guarding ``value``; None when always present
+    shape: str  # "handle", "optional" or "list"
+
+
+def cpp_result(
+    function: Function,
+    unwrap: Callable[[Argument], str],
+    *,
+    indent: str = "        ",
+) -> CppResult:
+    """Return the whole C++ shape of one entry: locals, call, and result.
+
+    ``handle`` families keep the single-expression form ``cpp_call`` already
+    produced.  ``optional`` declares the ``Ptr`` out-parameter's target plus a
+    ``found`` flag from the ``int``/``bool`` status; ``list`` declares the
+    ``std::vector`` out-parameter and widens it to ``Basic`` once, so a wrapper
+    only ever wraps ``RCP<const Basic>``.
+    """
+    shape = RESULT_SHAPES[function.behavior]
+    if shape == "handle":
+        prologue, call = cpp_call(function, unwrap, indent=indent)
+        return CppResult(prologue, call, None, shape)
+    if shape == "optional":
+        prologue, call = cpp_call(
+            function, unwrap, indent=indent,
+            prefix_arguments=(f"SymEngine::outArg({OUT_NAME})",),
+        )
+        statements = [
+            f"{indent}{INTEGER_RCP} {OUT_NAME};",
+            *prologue,
+            f"{indent}const bool {FOUND_NAME} = ({call}) != 0;",
+        ]
+        return CppResult(statements, OUT_NAME, FOUND_NAME, shape)
+    prologue, call = cpp_call(function, unwrap, indent=indent, prefix_arguments=(OUT_NAME,))
+    statements = [
+        f"{indent}{INTEGER_VECTOR} {OUT_NAME};",
+        *prologue,
+        f"{indent}{call};",
+        f"{indent}{BASIC_VECTOR} {VALUES_NAME}({OUT_NAME}.begin(), {OUT_NAME}.end());",
+    ]
+    return CppResult(statements, VALUES_NAME, None, shape)

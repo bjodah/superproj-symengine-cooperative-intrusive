@@ -29,7 +29,17 @@ class Call:
 
 @dataclass(frozen=True)
 class Expect:
-    string: str
+    """One of the three result expectations the shared schema can state.
+
+    ``string`` is the printed form of a single expression, ``none`` is "the
+    entry reported that no result exists" (Python's ``None``), and ``strings``
+    is the ordered printed forms of a list result.  ``kind`` names which one is
+    set so renderers branch on data rather than on ``is None`` checks.
+    """
+
+    kind: str  # "string", "none" or "strings"
+    string: str | None = None
+    strings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -58,7 +68,12 @@ def _to_model(document: Mapping[str, object], source_path: Path) -> TestCaseSuit
         call_raw = raw["call"]
         call = Call(function=call_raw["function"], arguments=tuple(call_raw["arguments"]))
         expect_raw = raw["expect"]
-        expect = Expect(string=expect_raw["string"])
+        if "none" in expect_raw:
+            expect = Expect(kind="none")
+        elif "strings" in expect_raw:
+            expect = Expect(kind="strings", strings=tuple(expect_raw["strings"]))
+        else:
+            expect = Expect(kind="string", string=expect_raw["string"])
         cases.append(TestCase(id=raw["id"], arrange=arrange, call=call, expect=expect))
     return TestCaseSuite(
         schema_version=document["schema_version"],  # type: ignore[arg-type]
@@ -82,6 +97,16 @@ def load_test_cases(path: Path | str = TEST_CASES_PATH) -> TestCaseSuite:
     if errors:
         raise SpecValidationError("test-cases schema validation failed:\n  " + "\n  ".join(errors))
     return _to_model(document, source_path)
+
+
+# Which expectations an adapter family can produce.  A family whose result is
+# always one expression can only be checked with ``string``; only the optional
+# family can report "no result", and only the list family yields ``strings``.
+EXPECTATIONS_BY_BEHAVIOR: Mapping[str, frozenset[str]] = {
+    "status_optional_unary": frozenset({"string", "none"}),
+    "list_integer_to_basic": frozenset({"strings"}),
+}
+_DEFAULT_EXPECTATIONS = frozenset({"string"})
 
 
 def _validate_against_spec(suite: TestCaseSuite, spec: BindingSpec) -> None:
@@ -109,6 +134,14 @@ def _validate_against_spec(suite: TestCaseSuite, spec: BindingSpec) -> None:
                 raise SpecValidationError(
                     f"case '{case.id}': call references unknown arrange variable '{argument_name}'"
                 )
+
+        allowed = EXPECTATIONS_BY_BEHAVIOR.get(function.behavior, _DEFAULT_EXPECTATIONS)
+        if case.expect.kind not in allowed:
+            raise SpecValidationError(
+                f"case '{case.id}': expectation '{case.expect.kind}' does not fit "
+                f"'{function.id}' ({function.behavior}); expected one of "
+                + ", ".join(sorted(allowed))
+            )
 
 
 def validate_test_cases(
