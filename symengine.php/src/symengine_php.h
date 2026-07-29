@@ -19,6 +19,7 @@
 #include <symengine/infinity.h>
 #include <symengine/nan.h>
 #include <symengine/add.h>
+#include <symengine/functions.h>
 #include <symengine/mul.h>
 #include <symengine/pow.h>
 #include <symengine/symengine_rcp.h>

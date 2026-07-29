@@ -77,13 +77,13 @@ functions:
     expose: [python, perl, php, swift, java]
     names: {swift: power}
     implementation: generated
-  - &python_unary
+  - &unary
     id: sin
     cpp: {name: SymEngine::sin, header: symengine/functions.h}
     arguments: [{name: a, type: basic}]
     returns: basic
     behavior: unary_basic
-    expose: [python, perl, java]
+    expose: [python, perl, php, swift, java]
     implementation: generated
   - id: sub
     cpp: {name: SymEngine::sub, header: symengine/add.h}
@@ -131,58 +131,62 @@ functions:
   - {<<: *singleton, id: two, cpp: {expression: SymEngine::two, header: symengine/constants.h}, expose: [perl, php, swift, java]}
 
   # Merge templates keep the shared spec declarative without re-stating a
-  # C++ API for each mechanical adapter-family entry.
-  - &python_binary
+  # C++ API for each mechanical adapter-family entry.  Both merge anchors
+  # (``unary`` above, ``binary`` here) expose every language: the
+  # ``unary_basic``/``binary_basic`` adapters are fully generated in all five
+  # renderers, so an entry's default is "available everywhere" and any
+  # narrower ``expose`` needs a reason spelled out next to it.
+  - &binary
     id: atan2
     cpp: {name: SymEngine::atan2, header: symengine/functions.h}
     arguments: [{name: a, type: basic}, {name: b, type: basic}]
     returns: basic
     behavior: binary_basic
-    expose: [python]
+    expose: [python, perl, php, swift, java]
     implementation: generated
-  - {<<: *python_unary, id: cos, cpp: {name: SymEngine::cos, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: tan, cpp: {name: SymEngine::tan, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: cot, cpp: {name: SymEngine::cot, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: csc, cpp: {name: SymEngine::csc, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: sec, cpp: {name: SymEngine::sec, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: asin, cpp: {name: SymEngine::asin, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: acos, cpp: {name: SymEngine::acos, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: atan, cpp: {name: SymEngine::atan, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: acot, cpp: {name: SymEngine::acot, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: asec, cpp: {name: SymEngine::asec, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: acsc, cpp: {name: SymEngine::acsc, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: sinh, cpp: {name: SymEngine::sinh, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: cosh, cpp: {name: SymEngine::cosh, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: tanh, cpp: {name: SymEngine::tanh, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: coth, cpp: {name: SymEngine::coth, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: sech, cpp: {name: SymEngine::sech, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: csch, cpp: {name: SymEngine::csch, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: asinh, cpp: {name: SymEngine::asinh, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: acosh, cpp: {name: SymEngine::acosh, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: atanh, cpp: {name: SymEngine::atanh, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: acoth, cpp: {name: SymEngine::acoth, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: asech, cpp: {name: SymEngine::asech, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: acsch, cpp: {name: SymEngine::acsch, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: log, cpp: {name: SymEngine::log, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: sqrt, cpp: {name: SymEngine::sqrt, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: abs, cpp: {name: SymEngine::abs, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: sign, cpp: {name: SymEngine::sign, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: floor, cpp: {name: SymEngine::floor, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: ceiling, cpp: {name: SymEngine::ceiling, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: gamma, cpp: {name: SymEngine::gamma, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: erf, cpp: {name: SymEngine::erf, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: erfc, cpp: {name: SymEngine::erfc, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: lambertw, cpp: {name: SymEngine::lambertw, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: zeta, cpp: {name: SymEngine::zeta, header: symengine/functions.h}, arguments: [{name: s, type: basic}], expose: [python]}
-  - {<<: *python_unary, id: dirichlet_eta, cpp: {name: SymEngine::dirichlet_eta, header: symengine/functions.h}, arguments: [{name: s, type: basic}], expose: [python]}
-  - {<<: *python_binary, id: beta, cpp: {name: SymEngine::beta, header: symengine/functions.h}, arguments: [{name: x, type: basic}, {name: y, type: basic}]}
-  - {<<: *python_unary, id: conjugate, cpp: {name: SymEngine::conjugate, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: loggamma, cpp: {name: SymEngine::loggamma, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_binary, id: polygamma, cpp: {name: SymEngine::polygamma, header: symengine/functions.h}, arguments: [{name: n, type: basic}, {name: x, type: basic}]}
-  - {<<: *python_unary, id: digamma, cpp: {name: SymEngine::digamma, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_unary, id: trigamma, cpp: {name: SymEngine::trigamma, header: symengine/functions.h}, expose: [python]}
-  - {<<: *python_binary, id: uppergamma, cpp: {name: SymEngine::uppergamma, header: symengine/functions.h}, arguments: [{name: s, type: basic}, {name: x, type: basic}]}
-  - {<<: *python_binary, id: lowergamma, cpp: {name: SymEngine::lowergamma, header: symengine/functions.h}, arguments: [{name: s, type: basic}, {name: x, type: basic}]}
+  - {<<: *unary, id: cos, cpp: {name: SymEngine::cos, header: symengine/functions.h}}
+  - {<<: *unary, id: tan, cpp: {name: SymEngine::tan, header: symengine/functions.h}}
+  - {<<: *unary, id: cot, cpp: {name: SymEngine::cot, header: symengine/functions.h}}
+  - {<<: *unary, id: csc, cpp: {name: SymEngine::csc, header: symengine/functions.h}}
+  - {<<: *unary, id: sec, cpp: {name: SymEngine::sec, header: symengine/functions.h}}
+  - {<<: *unary, id: asin, cpp: {name: SymEngine::asin, header: symengine/functions.h}}
+  - {<<: *unary, id: acos, cpp: {name: SymEngine::acos, header: symengine/functions.h}}
+  - {<<: *unary, id: atan, cpp: {name: SymEngine::atan, header: symengine/functions.h}}
+  - {<<: *unary, id: acot, cpp: {name: SymEngine::acot, header: symengine/functions.h}}
+  - {<<: *unary, id: asec, cpp: {name: SymEngine::asec, header: symengine/functions.h}}
+  - {<<: *unary, id: acsc, cpp: {name: SymEngine::acsc, header: symengine/functions.h}}
+  - {<<: *unary, id: sinh, cpp: {name: SymEngine::sinh, header: symengine/functions.h}}
+  - {<<: *unary, id: cosh, cpp: {name: SymEngine::cosh, header: symengine/functions.h}}
+  - {<<: *unary, id: tanh, cpp: {name: SymEngine::tanh, header: symengine/functions.h}}
+  - {<<: *unary, id: coth, cpp: {name: SymEngine::coth, header: symengine/functions.h}}
+  - {<<: *unary, id: sech, cpp: {name: SymEngine::sech, header: symengine/functions.h}}
+  - {<<: *unary, id: csch, cpp: {name: SymEngine::csch, header: symengine/functions.h}}
+  - {<<: *unary, id: asinh, cpp: {name: SymEngine::asinh, header: symengine/functions.h}}
+  - {<<: *unary, id: acosh, cpp: {name: SymEngine::acosh, header: symengine/functions.h}}
+  - {<<: *unary, id: atanh, cpp: {name: SymEngine::atanh, header: symengine/functions.h}}
+  - {<<: *unary, id: acoth, cpp: {name: SymEngine::acoth, header: symengine/functions.h}}
+  - {<<: *unary, id: asech, cpp: {name: SymEngine::asech, header: symengine/functions.h}}
+  - {<<: *unary, id: acsch, cpp: {name: SymEngine::acsch, header: symengine/functions.h}}
+  - {<<: *unary, id: log, cpp: {name: SymEngine::log, header: symengine/functions.h}}
+  - {<<: *unary, id: sqrt, cpp: {name: SymEngine::sqrt, header: symengine/functions.h}}
+  - {<<: *unary, id: abs, cpp: {name: SymEngine::abs, header: symengine/functions.h}}
+  - {<<: *unary, id: sign, cpp: {name: SymEngine::sign, header: symengine/functions.h}}
+  - {<<: *unary, id: floor, cpp: {name: SymEngine::floor, header: symengine/functions.h}}
+  - {<<: *unary, id: ceiling, cpp: {name: SymEngine::ceiling, header: symengine/functions.h}}
+  - {<<: *unary, id: gamma, cpp: {name: SymEngine::gamma, header: symengine/functions.h}}
+  - {<<: *unary, id: erf, cpp: {name: SymEngine::erf, header: symengine/functions.h}}
+  - {<<: *unary, id: erfc, cpp: {name: SymEngine::erfc, header: symengine/functions.h}}
+  - {<<: *unary, id: lambertw, cpp: {name: SymEngine::lambertw, header: symengine/functions.h}}
+  - {<<: *unary, id: zeta, cpp: {name: SymEngine::zeta, header: symengine/functions.h}, arguments: [{name: s, type: basic}]}
+  - {<<: *unary, id: dirichlet_eta, cpp: {name: SymEngine::dirichlet_eta, header: symengine/functions.h}, arguments: [{name: s, type: basic}]}
+  - {<<: *binary, id: beta, cpp: {name: SymEngine::beta, header: symengine/functions.h}, arguments: [{name: x, type: basic}, {name: y, type: basic}]}
+  - {<<: *unary, id: conjugate, cpp: {name: SymEngine::conjugate, header: symengine/functions.h}}
+  - {<<: *unary, id: loggamma, cpp: {name: SymEngine::loggamma, header: symengine/functions.h}}
+  - {<<: *binary, id: polygamma, cpp: {name: SymEngine::polygamma, header: symengine/functions.h}, arguments: [{name: n, type: basic}, {name: x, type: basic}]}
+  - {<<: *unary, id: digamma, cpp: {name: SymEngine::digamma, header: symengine/functions.h}}
+  - {<<: *unary, id: trigamma, cpp: {name: SymEngine::trigamma, header: symengine/functions.h}}
+  - {<<: *binary, id: uppergamma, cpp: {name: SymEngine::uppergamma, header: symengine/functions.h}, arguments: [{name: s, type: basic}, {name: x, type: basic}]}
+  - {<<: *binary, id: lowergamma, cpp: {name: SymEngine::lowergamma, header: symengine/functions.h}, arguments: [{name: s, type: basic}, {name: x, type: basic}]}
   - &python_boolean
     id: eq
     cpp: {name: SymEngine::Eq, header: symengine/logic.h}

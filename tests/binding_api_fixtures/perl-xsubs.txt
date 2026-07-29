@@ -8,15 +8,48 @@ is_external_owned(value) -> bool
 _stringify(self) -> SV *
 _equals(self, other) -> bool
 DESTROY(self) -> void
+abs(a) -> SV *
+acos(a) -> SV *
+acosh(a) -> SV *
+acot(a) -> SV *
+acoth(a) -> SV *
+acsc(a) -> SV *
+acsch(a) -> SV *
 add(a, b) -> SV *
+asec(a) -> SV *
+asech(a) -> SV *
+asin(a) -> SV *
+asinh(a) -> SV *
+atan(a) -> SV *
+atan2(a, b) -> SV *
+atanh(a) -> SV *
+beta(x, y) -> SV *
 catalan() -> SV *
+ceiling(a) -> SV *
 complex_inf() -> SV *
+conjugate(a) -> SV *
+cos(a) -> SV *
+cosh(a) -> SV *
+cot(a) -> SV *
+coth(a) -> SV *
+csc(a) -> SV *
+csch(a) -> SV *
+digamma(a) -> SV *
+dirichlet_eta(s) -> SV *
 div(a, b) -> SV *
 e() -> SV *
+erf(a) -> SV *
+erfc(a) -> SV *
 euler_gamma() -> SV *
+floor(a) -> SV *
+gamma(a) -> SV *
 golden_ratio() -> SV *
 i() -> SV *
 inf() -> SV *
+lambertw(a) -> SV *
+log(a) -> SV *
+loggamma(a) -> SV *
+lowergamma(s, x) -> SV *
 minus_one() -> SV *
 mul(a, b) -> SV *
 nan() -> SV *
@@ -24,8 +57,19 @@ neg(a) -> SV *
 neg_inf() -> SV *
 one() -> SV *
 pi() -> SV *
+polygamma(n, x) -> SV *
 pow(a, b) -> SV *
+sec(a) -> SV *
+sech(a) -> SV *
+sign(a) -> SV *
 sin(a) -> SV *
+sinh(a) -> SV *
+sqrt(a) -> SV *
 sub(a, b) -> SV *
+tan(a) -> SV *
+tanh(a) -> SV *
+trigamma(a) -> SV *
 two() -> SV *
+uppergamma(s, x) -> SV *
 zero() -> SV *
+zeta(s) -> SV *

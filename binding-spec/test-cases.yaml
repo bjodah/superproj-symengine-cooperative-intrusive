@@ -144,3 +144,49 @@ cases:
     arrange: {}
     call: {function: nan, arguments: []}
     expect: {string: "nan"}
+
+  # Elementary and special functions.  A representative sample rather than one
+  # case per entry: the ``unary_basic``/``binary_basic`` adapters are rendered
+  # from a single code path per language, so these prove that path end to end
+  # for a symbolic result, an exactly evaluated result, and a binary call.
+  - id: sqrt_integer
+    arrange:
+      x: {integer: 2}
+    call: {function: sqrt, arguments: [x]}
+    expect: {string: "sqrt(2)"}
+  - id: log_symbol
+    arrange:
+      x: {symbol: x}
+    call: {function: log, arguments: [x]}
+    expect: {string: "log(x)"}
+  - id: abs_negative_integer
+    arrange:
+      x: {integer: -3}
+    call: {function: abs, arguments: [x]}
+    expect: {string: "3"}
+  - id: cosh_symbol
+    arrange:
+      x: {symbol: x}
+    call: {function: cosh, arguments: [x]}
+    expect: {string: "cosh(x)"}
+  - id: asin_symbol
+    arrange:
+      x: {symbol: x}
+    call: {function: asin, arguments: [x]}
+    expect: {string: "asin(x)"}
+  - id: gamma_integer
+    arrange:
+      x: {integer: 5}
+    call: {function: gamma, arguments: [x]}
+    expect: {string: "24"}
+  - id: zeta_integer
+    arrange:
+      s: {integer: 2}
+    call: {function: zeta, arguments: [s]}
+    expect: {string: "(1/6)*pi**2"}
+  - id: atan2_integers
+    arrange:
+      x: {integer: 1}
+      y: {integer: 1}
+    call: {function: atan2, arguments: [x, y]}
+    expect: {string: "(1/4)*pi"}

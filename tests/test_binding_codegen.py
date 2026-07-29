@@ -316,7 +316,7 @@ def test_check_command_end_to_end(capsys: pytest.CaptureFixture[str]) -> None:
 def test_committed_test_cases_validate_against_the_spec() -> None:
     spec = validate_spec(API_PATH)
     suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
-    assert len(suite.cases) == 27
+    assert len(suite.cases) == 35
     ids = {case.id for case in suite.cases}
     assert ids == {
         "add_integers", "sub_integers", "mul_integers", "div_integers",
@@ -327,6 +327,8 @@ def test_committed_test_cases_validate_against_the_spec() -> None:
         "two_constant", "i_constant", "e_constant", "euler_gamma_constant",
         "catalan_constant", "golden_ratio_constant", "inf_constant",
         "neg_inf_constant", "complex_inf_constant", "nan_constant",
+        "sqrt_integer", "log_symbol", "abs_negative_integer", "cosh_symbol",
+        "asin_symbol", "gamma_integer", "zeta_integer", "atan2_integers",
     }
 
 
@@ -412,25 +414,38 @@ def test_test_renderers_sort_cases_by_id_independent_of_yaml_order() -> None:
     assert positions == sorted(positions)
 
 
-def test_swift_and_php_renderers_skip_functions_not_exposed_with_a_named_reason() -> None:
+def test_renderers_skip_a_case_whose_function_is_not_exposed_with_a_named_reason() -> None:
+    """Every ``unary_basic``/``binary_basic`` entry is exposed everywhere, so the
+    skip path is exercised against a spec with ``sin`` withdrawn instead."""
     spec = validate_spec(API_PATH)
     suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
-    swift_output = render_swift_tests(spec, suite)
+    withdrawn = dataclasses.replace(
+        next(function for function in spec.functions if function.id == "sin"),
+        expose=("python", "perl", "java"),
+    )
+    mutated = dataclasses.replace(
+        spec,
+        functions=tuple(withdrawn if function.id == "sin" else function
+                        for function in spec.functions),
+    )
+    swift_output = render_swift_tests(mutated, suite)
     assert "SKIPPED case 'sin_symbol'" in swift_output
     assert "not exposed to swift" in swift_output
     assert "func test_sin_symbol" not in swift_output
 
-    php_output = render_php_tests(spec, suite)
+    php_output = render_php_tests(mutated, suite)
     assert "SKIPPED case 'sin_symbol'" in php_output
     assert "not exposed to php" in php_output
 
 
-def test_java_and_perl_renderers_include_every_case() -> None:
+def test_every_wrapper_but_python_includes_every_case() -> None:
     spec = validate_spec(API_PATH)
     suite = validate_test_cases(TEST_CASES_PATH, spec=spec)
     for renderer, needle in (
         (render_java_tests, "sin"),
         (render_perl_tests, "sin_symbol"),
+        (render_php_tests, "symengine_sqrt"),
+        (render_swift_tests, "test_atan2_integers"),
     ):
         assert "SKIPPED" not in renderer(spec, suite)
         assert needle in renderer(spec, suite)

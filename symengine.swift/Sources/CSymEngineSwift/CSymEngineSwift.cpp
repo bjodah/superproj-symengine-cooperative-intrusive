@@ -2,6 +2,7 @@
 
 #include <symengine/add.h>
 #include <symengine/constants.h>
+#include <symengine/functions.h>
 #include <symengine/integer.h>
 #include <symengine/mul.h>
 #include <symengine/pow.h>
